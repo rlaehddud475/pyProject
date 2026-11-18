@@ -10,7 +10,7 @@ class RealCardGamePlatform:
   def __init__(self, root):
     self.root = root
     self.root.title(
-        "Python 기말과제 - 카드 게임 & 슬롯머신 통합 플랫폼"
+        "Python 기말과제 - 게임 통합 플랫폼"
     )
     self.root.geometry("900x720")
     self.root.resizable(False, False)
