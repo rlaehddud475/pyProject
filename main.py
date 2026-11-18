@@ -4,12 +4,14 @@ from tkinter import messagebox
 import database
 
 
-class PyPokerApp:
+class RealCardGamePlatform:
 
   def __init__(self, root):
     self.root = root
-    self.root.title("Python 기말과제 - 1:1 포커 게임")
-    self.root.geometry("600x500")
+    self.root.title(
+        "Python 기말과제 - 정통 세븐포커 & 텍사스 홀덤 플랫폼"
+    )
+    self.root.geometry("900x700")
     self.root.resizable(False, False)
 
     self.current_user = None
@@ -24,7 +26,7 @@ class PyPokerApp:
     self.clear_window()
 
     tk.Label(
-        self.root, text="🃏 PyPoker 게임", font=("Arial", 20, "bold")
+        self.root, text="🃏 카드 게임 통합 플랫폼", font=("Arial", 20, "bold")
     ).pack(pady=40)
 
     frame = tk.Frame(self.root)
@@ -71,7 +73,7 @@ class PyPokerApp:
     if user:
       self.current_user = user
       messagebox.showinfo("성공", f"{user['nickname']}님 환영합니다!")
-      self.create_main_lobby()
+      self.create_game_select_lobby()
     else:
       messagebox.showerror(
           "오류", "아이디 또는 비밀번호가 일치하지 않습니다."
@@ -136,11 +138,10 @@ class PyPokerApp:
         command=self.create_login_screen,
     ).pack()
 
-  # ==================== [3] 메인 로비 (전적 확인) ====================
-  def create_main_lobby(self):
+  # ==================== [3] 게임 선택 로비 ====================
+  def create_game_select_lobby(self):
     self.clear_window()
 
-    # 최신 정보 동기화
     users = database.load_users()
     for u in users:
       if u["username"] == self.current_user["username"]:
@@ -155,62 +156,73 @@ class PyPokerApp:
     win_rate = (wins / total * 100) if total > 0 else 0
 
     tk.Label(
-        self.root, text=f"👤 {nickname} 님의 대시보드", font=("Arial", 18, "bold")
+        self.root,
+        text=f"👤 {nickname} 님, 플레이할 게임을 선택하세요!",
+        font=("Arial", 18, "bold"),
     ).pack(pady=30)
 
     info_frame = tk.Frame(self.root, bg="#f0f0f0", bd=2, relief="groove")
-    info_frame.pack(pady=10, ipadx=20, ipady=15)
+    info_frame.pack(pady=10, ipadx=20, ipady=12)
 
     tk.Label(
         info_frame,
         text=f"보유 칩: 🪙 {chips:,} 칩",
-        font=("Arial", 14),
+        font=("Arial", 13),
         bg="#f0f0f0",
-    ).pack(anchor="w", pady=5)
+    ).pack(anchor="w", pady=3)
     tk.Label(
         info_frame,
-        text=(
-            f"전적: {wins}승 {losses}패 (승률: {win_rate:.1f}%, 총 게임수:"
-            f" {total})"
-        ),
-        font=("Arial", 12),
+        text=f"전적: {wins}승 {losses}패 (승률: {win_rate:.1f}%)",
+        font=("Arial", 11),
         bg="#f0f0f0",
-    ).pack(anchor="w", pady=5)
+    ).pack(anchor="w", pady=3)
+
+    game_btn_frame = tk.Frame(self.root)
+    game_btn_frame.pack(pady=25)
 
     tk.Button(
-        self.root,
-        text="🎮 포커 게임 시작",
-        font=("Arial", 14, "bold"),
+        game_btn_frame,
+        text="🃏 세븐 포커\n(3장 시작 ➔ 7장 받아 최고 5장 승부)",
+        font=("Arial", 12, "bold"),
+        bg="#3F51B5",
+        fg="white",
+        width=28,
+        height=4,
+        command=self.start_seven_poker,
+    ).pack(side="left", padx=15)
+
+    tk.Button(
+        game_btn_frame,
+        text="🎲 텍사스 홀덤\n(프리플랍 ➔ 플랍 ➔ 턴 ➔ 리버 ➔ 쇼다운)",
+        font=("Arial", 12, "bold"),
         bg="#FF9800",
         fg="white",
-        width=22,
-        height=2,
-        command=self.start_poker_game,
-    ).pack(pady=20)
+        width=28,
+        height=4,
+        command=self.start_holdem_game,
+    ).pack(side="left", padx=15)
+
     tk.Button(
         self.root,
         text="로그아웃",
         font=("Arial", 10),
         width=15,
         command=self.create_login_screen,
-    ).pack()
+    ).pack(pady=10)
 
-  # ==================== [4] 포커 게임 화면 및 로직 ====================
-  def start_poker_game(self):
+  # ==================== [4] 세븐 포커 모드 ====================
+  def start_seven_poker(self):
     if int(self.current_user["chips"]) < 1000:
       messagebox.showwarning(
-          "파산", "칩이 부족합니다! (기본 10,000칩 충전해드립니다)"
+          "파산", "칩이 부족합니다! (기본 10,000칩 충전)"
       )
-      database.update_record(
-          self.current_user["username"], False, 10000
-      )  # 충전
-      self.create_main_lobby()
+      database.update_record(self.current_user["username"], False, 10000)
+      self.create_game_select_lobby()
       return
 
     self.clear_window()
-    self.root.geometry("700x550")
+    self.root.geometry("900x700")
 
-    # 게임 상태 변수
     self.deck = [
         f"{suit}{val}"
         for suit in ["♠", "♥", "◆", "♣"]
@@ -232,109 +244,548 @@ class PyPokerApp:
     ]
     random.shuffle(self.deck)
 
-    self.player_hand = [self.deck.pop() for _ in range(5)]
-    self.ai_hand = [self.deck.pop() for _ in range(5)]
-    self.pot = 2000  # (유저 1000, AI 1000)
+    # 7장씩 미리 분배 (플레이어, AI)
+    # 세븐포커 순서: 처음 3장 (보통 2장 앞면, 1장 뒷면 -> 편의상 앞면 2, 뒷면 1)
+    self.sp_player_cards = [self.deck.pop(), self.deck.pop(), self.deck.pop()]
+    self.sp_ai_cards = [self.deck.pop(), self.deck.pop(), self.deck.pop()]
 
-    # 상단 정보 표시
-    self.top_frame = tk.Frame(self.root)
-    self.top_frame.pack(pady=15)
+    # 추가로 받을 4장 (4번째, 5번째, 6번째 = 앞면 / 7번째 = 뒷면)
+    for _ in range(4):
+      self.sp_player_cards.append(self.deck.pop())
+      self.sp_ai_cards.append(self.deck.pop())
 
-    self.status_label = tk.Label(
-        self.top_frame,
-        text="[라운드 1] 카드가 배분되었습니다. 패를 확인하세요!",
-        font=("Arial", 12, "bold"),
-        fg="#333",
+    self.pot = 2000
+    self.sp_step = 1  # 1: 처음 3장, 2: 4번째, 3: 5번째, 4: 6번째, 5: 7번째(마지막), 6: 쇼다운
+
+    # UI 레이아웃
+    self.sp_status_lbl = tk.Label(
+        self.root,
+        text=(
+            "[세븐 포커 1단계] 처음 3장의 카드를 받았습니다. (앞면 2장, 뒷면 1장)"
+            " 베팅을 진행하세요!"
+        ),
+        font=("Arial", 11, "bold"),
+        fg="#3F51B5",
     )
-    self.status_label.pack()
+    self.sp_status_lbl.pack(pady=10)
 
     # AI 영역
     ai_frame = tk.LabelFrame(
-        self.root, text=" 컴퓨터 (AI) ", font=("Arial", 11), padx=10, pady=10
-    )
-    ai_frame.pack(pady=10, fill="x", padx=20)
-    self.ai_card_labels = []
-    for _ in range(5):
-      lbl = tk.Label(
-          ai_frame,
-          text="🂠",
-          font=("Arial", 28),
-          width=3,
-          bg="white",
-          relief="solid",
-      )
-      lbl.pack(side="left", padx=5)
-      self.ai_card_labels.append(lbl)
-
-    # 판돈 정보
-    self.pot_label = tk.Label(
         self.root,
-        text=f"현재 팟(Pot): {self.pot:,} 칩",
-        font=("Arial", 13, "bold"),
-        fg="#D32F2F",
-    )
-    self.pot_label.pack(pady=5)
-
-    # 유저 영역
-    player_frame = tk.LabelFrame(
-        self.root,
-        text=f" {self.current_user['nickname']} (나) ",
+        text=" 컴퓨터 (AI) - 7장 중 오픈된 카드 ",
         font=("Arial", 11),
         padx=10,
-        pady=10,
+        pady=5,
     )
-    player_frame.pack(pady=10, fill="x", padx=20)
-    self.player_card_labels = []
-    for i in range(5):
+    ai_frame.pack(pady=5, fill="x", padx=20)
+    self.sp_ai_frame = ai_frame
+    self.sp_ai_lbls = []
+
+    # AI는 처음 3장 중 2장 공개, 1장 비공개 (마지막 7번째도 비공개)
+    for i in range(7):
+      card_text = (
+          self.sp_ai_cards[i]
+          if (i not in [2, 6])
+          else "🂠"  # 3번째(인덱스2)와 7번째(인덱스6) 뒷면
+      )
       lbl = tk.Label(
-          player_frame,
-          text=self.player_hand[i],
-          font=("Arial", 22, "bold"),
+          ai_frame,
+          text=card_text,
+          font=("Arial", 18, "bold"),
           width=4,
           height=2,
-          bg="white",
+          bg="white" if card_text != "🂠" else "#ccc",
           relief="solid",
       )
-      lbl.pack(side="left", padx=5)
-      self.player_card_labels.append(lbl)
+      lbl.pack(side="left", padx=3)
+      self.sp_ai_lbls.append(lbl)
 
-    # 조작 버튼 영역
-    self.btn_frame = tk.Frame(self.root)
-    self.btn_frame.pack(pady=15)
+    self.sp_pot_lbl = tk.Label(
+        self.root,
+        text=f"현재 팟(Pot): {self.pot:,} 칩",
+        font=("Arial", 12, "bold"),
+        fg="#D32F2F",
+    )
+    self.sp_pot_lbl.pack(pady=5)
 
-    self.call_btn = tk.Button(
-        self.btn_frame,
-        text="콜 (승부 보기)",
+    # 플레이어 영역
+    player_frame = tk.LabelFrame(
+        self.root,
+        text=f" {self.current_user['nickname']} (나의 패 - 총 7장) ",
+        font=("Arial", 11),
+        padx=10,
+        pady=5,
+    )
+    player_frame.pack(pady=5, fill="x", padx=20)
+    self.sp_player_frame = player_frame
+    self.sp_player_lbls = []
+
+    # 플레이어도 3장부터 시작하되, 처음 2장 오픈, 3번째(인덱스2)는 뒷면 카드 표시
+    for i in range(7):
+      # 현재 단계(sp_step)에 따라 볼 수 있는 카드만 표시하고 나머지는 🂠 처리
+      is_visible = False
+      if self.sp_step >= 1 and i < 3:
+        is_visible = True  # 처음 3장
+      elif self.sp_step >= 2 and i == 3:
+        is_visible = True  # 4번째
+      elif self.sp_step >= 3 and i == 4:
+        is_visible = True  # 5번째
+      elif self.sp_step >= 4 and i == 5:
+        is_visible = True  # 6번째
+      elif self.sp_step >= 5 and i == 6:
+        is_visible = True  # 7번째(마지막 뒷면 카드 오픈 쇼다운 시)
+
+      # 단, 세븐포커 룰상 3번째 카드와 7번째 카드는 본인도 뒷면으로 받음 (쇼다운 때 공개)
+      if i in [2, 6] and self.sp_step < 6:
+        card_text = "🂠 (히든)"
+        bg_col = "#ffecb3"
+      elif is_visible:
+        card_text = self.sp_player_cards[i]
+        bg_col = "white"
+      else:
+        card_text = "🂠"
+        bg_col = "#e0e0e0"
+
+      lbl = tk.Label(
+          player_frame,
+          text=card_text,
+          font=("Arial", 16, "bold"),
+          width=6,
+          height=2,
+          bg=bg_col,
+          relief="solid",
+      )
+      lbl.pack(side="left", padx=3)
+      self.sp_player_lbls.append(lbl)
+
+    # 버튼 영역
+    self.sp_btn_frame = tk.Frame(self.root)
+    self.sp_btn_frame.pack(pady=20)
+
+    self.sp_action_btn = tk.Button(
+        self.sp_btn_frame,
+        text="콜 (4번째 카드 받기)",
         font=("Arial", 12, "bold"),
         bg="#4CAF50",
         fg="white",
-        width=15,
+        width=22,
         height=2,
-        command=self.end_game_showdown,
+        command=self.seven_poker_next,
     )
-    self.call_btn.pack(side="left", padx=10)
+    self.sp_action_btn.pack(side="left", padx=10)
 
-    self.quit_btn = tk.Button(
-        self.btn_frame,
+    self.sp_fold_btn = tk.Button(
+        self.sp_btn_frame,
         text="포기 (다이)",
         font=("Arial", 12, "bold"),
         bg="#F44336",
         fg="white",
         width=15,
         height=2,
-        command=self.player_fold,
+        command=self.seven_poker_fold,
     )
-    self.quit_btn.pack(side="left", padx=10)
+    self.sp_fold_btn.pack(side="left", padx=10)
 
-  def player_fold(self):
+  def seven_poker_next(self):
+    self.sp_step += 1
+    self.pot += 500
+
+    if self.sp_step == 2:
+      self.sp_status_lbl.config(
+          text=(
+              "[세븐 포커 2단계] 4번째 카드를 받았습니다 (앞면). 베팅을"
+              " 진행하세요!"
+          )
+      )
+      self.sp_action_btn.config(text="콜 (5번째 카드 받기)")
+    elif self.sp_step == 3:
+      self.sp_status_lbl.config(
+          text=(
+              "[세븐 포커 3단계] 5번째 카드를 받았습니다 (앞면). 베팅을"
+              " 진행하세요!"
+          )
+      )
+      self.sp_action_btn.config(text="콜 (6번째 카드 받기)")
+    elif self.sp_step == 4:
+      self.sp_status_lbl.config(
+          text=(
+              "[세븐 포커 4단계] 6번째 카드를 받았습니다 (앞면). 베팅을"
+              " 진행하세요!"
+          )
+      )
+      self.sp_action_btn.config(text="콜 (마지막 7번째 뒷면 카드 받기)")
+    elif self.sp_step == 5:
+      self.sp_status_lbl.config(
+          text=(
+              "[세븐 포커 5단계] 마지막 7번째 카드를 뒷면으로 받았습니다. 최종"
+              " 베팅 후 쇼다운 하세요!"
+          ),
+          fg="#D32F2F",
+      )
+      self.sp_action_btn.config(text="쇼다운 (결과 확인 및 승부)")
+    elif self.sp_step == 6:
+      # 쇼다운 수행: 7장 중 가장 좋은 5장 조합 추출 및 승패 판정
+      self.sp_step = 6
+      self.perform_seven_poker_showdown()
+      return
+
+    # 화면의 플레이어 카드 라벨 갱신
+    for i in range(7):
+      is_visible = False
+      if self.sp_step >= 1 and i < 3:
+        is_visible = True
+      elif self.sp_step >= 2 and i == 3:
+        is_visible = True
+      elif self.sp_step >= 3 and i == 4:
+        is_visible = True
+      elif self.sp_step >= 4 and i == 5:
+        is_visible = True
+      elif self.sp_step >= 5 and i == 6:
+        is_visible = True
+
+      if i in [2, 6] and self.sp_step < 6:
+        card_text = "🂠 (히든)"
+        bg_col = "#ffecb3"
+      elif is_visible:
+        card_text = self.sp_player_cards[i]
+        bg_col = "white"
+      else:
+        card_text = "🂠"
+        bg_col = "#e0e0e0"
+
+      self.sp_player_lbls[i].config(text=card_text, bg=bg_col)
+
+    self.sp_pot_lbl.config(text=f"현재 팟(Pot): {self.pot:,} 칩")
+
+  def perform_seven_poker_showdown(self):
+    # AI의 모든 카드(7장) 공개
+    for i, lbl in enumerate(self.sp_ai_lbls):
+      lbl.config(text=self.sp_ai_cards[i], bg="white")
+
+    # 플레이어의 모든 카드(7장) 공개
+    for i, lbl in enumerate(self.sp_player_lbls):
+      lbl.config(text=self.sp_player_cards[i], bg="white")
+
+    # 7장 중 최고 5장 조합 평가
+    p_score, p_desc = self.evaluate_best_5_of_7(self.sp_player_cards)
+    ai_score, ai_desc = self.evaluate_best_5_of_7(self.sp_ai_cards)
+
+    if p_score > ai_score:
+      result_text = f"🎉 플레이어 승리! (나: {p_desc} vs AI: {ai_desc})"
+      is_win = True
+      chip_change = self.pot // 2
+    elif p_score < ai_score:
+      result_text = f"😢 컴퓨터 승리 (나: {p_desc} vs AI: {ai_desc})"
+      is_win = False
+      chip_change = -(self.pot // 2)
+    else:
+      result_text = f"🤝 무승부! (족보 동일: {p_desc})"
+      is_win = None
+      chip_change = 0
+
+    self.sp_status_lbl.config(text=result_text, fg="blue" if is_win else "red")
+    self.sp_action_btn.pack_forget()
+    self.sp_fold_btn.pack_forget()
+
+    if is_win is not None:
+      database.update_record(self.current_user["username"], is_win, chip_change)
+
+    tk.Button(
+        self.sp_btn_frame,
+        text="게임 선택 로비로",
+        font=("Arial", 12, "bold"),
+        bg="#2196F3",
+        fg="white",
+        width=20,
+        height=2,
+        command=self.create_game_select_lobby,
+    ).pack()
+
+  def seven_poker_fold(self):
     messagebox.showinfo("패배", "다이(Fold)를 선언하여 게임을 포기했습니다.")
     database.update_record(self.current_user["username"], False, -1000)
-    self.root.geometry("600x500")
-    self.create_main_lobby()
+    self.create_game_select_lobby()
 
-  # 간단한 족보 점수 계산 알고리즘 (숫자 기준 단순 합산 및 페어 가중치)
-  def evaluate_hand(self, hand):
-    values = []
+  # ==================== [5] 텍사스 홀덤 모드 ====================
+  def start_holdem_game(self):
+    if int(self.current_user["chips"]) < 1000:
+      messagebox.showwarning(
+          "파산", "칩이 부족합니다! (기본 10,000칩 충전)"
+      )
+      database.update_record(self.current_user["username"], False, 10000)
+      self.create_game_select_lobby()
+      return
+
+    self.clear_window()
+    self.root.geometry("900x700")
+
+    self.deck = [
+        f"{suit}{val}"
+        for suit in ["♠", "♥", "◆", "♣"]
+        for val in [
+            "2",
+            "3",
+            "4",
+            "5",
+            "6",
+            "7",
+            "8",
+            "9",
+            "10",
+            "J",
+            "Q",
+            "K",
+            "A",
+        ]
+    ]
+    random.shuffle(self.deck)
+
+    # 홀덤 룰: 개인 카드 2장씩
+    self.holdem_player_hole = [self.deck.pop(), self.deck.pop()]
+    self.holdem_ai_hole = [self.deck.pop(), self.deck.pop()]
+
+    # 공용 카드 5장 준비 (플랍 3장, 턴 1장, 리버 1장)
+    self.deck.pop()  # Burn card
+    self.holdem_community = [self.deck.pop(), self.deck.pop(), self.deck.pop()]  # 플랍
+    self.deck.pop()  # Burn card
+    self.holdem_community.append(self.deck.pop())  # 턴
+    self.deck.pop()  # Burn card
+    self.holdem_community.append(self.deck.pop())  # 리버
+
+    self.pot = 2000
+    self.holdem_stage = 1  # 1: 프리플랍, 2: 플랍, 3: 턴, 4: 리버, 5: 쇼다운
+
+    # UI 레이아웃
+    self.holdem_status_lbl = tk.Label(
+        self.root,
+        text=(
+            "[텍사스 홀덤 - ① 프리플랍] 개인 카드 2장을 받았습니다. 첫 베팅을"
+            " 진행하세요!"
+        ),
+        font=("Arial", 11, "bold"),
+        fg="#FF9800",
+    )
+    self.holdem_status_lbl.pack(pady=10)
+
+    # AI 홀카드 영역 (비공개)
+    ai_frame = tk.LabelFrame(
+        self.root, text=" 컴퓨터 (AI 홀 카드) ", font=("Arial", 11), padx=10, pady=5
+    )
+    ai_frame.pack(pady=5, fill="x", padx=20)
+    self.holdem_ai_lbls = []
+    for _ in range(2):
+      lbl = tk.Label(
+          ai_frame,
+          text="🂠",
+          font=("Arial", 20),
+          width=4,
+          height=2,
+          bg="white",
+          relief="solid",
+      )
+      lbl.pack(side="left", padx=5)
+      self.holdem_ai_lbls.append(lbl)
+
+    # 공용 카드 영역 (초기에는 모두 뒷면)
+    comm_frame = tk.LabelFrame(
+        self.root,
+        text=" 공용 카드 (Community Cards - 총 5장) ",
+        font=("Arial", 11),
+        padx=10,
+        pady=5,
+    )
+    comm_frame.pack(pady=5, fill="x", padx=20)
+    self.holdem_comm_lbls = []
+    for _ in range(5):
+      lbl = tk.Label(
+          comm_frame,
+          text="🂠",
+          font=("Arial", 20),
+          width=4,
+          height=2,
+          bg="#e0e0e0",
+          relief="solid",
+      )
+      lbl.pack(side="left", padx=5)
+      self.holdem_comm_lbls.append(lbl)
+
+    self.holdem_pot_lbl = tk.Label(
+        self.root,
+        text=f"현재 팟(Pot): {self.pot:,} 칩",
+        font=("Arial", 12, "bold"),
+        fg="#388E3C",
+    )
+    self.holdem_pot_lbl.pack(pady=5)
+
+    # 플레이어 홀카드 영역
+    player_frame = tk.LabelFrame(
+        self.root,
+        text=f" {self.current_user['nickname']} (나의 홀 카드 2장) ",
+        font=("Arial", 11),
+        padx=10,
+        pady=5,
+    )
+    player_frame.pack(pady=5, fill="x", padx=20)
+    for card in self.holdem_player_hole:
+      tk.Label(
+          player_frame,
+          text=card,
+          font=("Arial", 20, "bold"),
+          width=4,
+          height=2,
+          bg="white",
+          relief="solid",
+      ).pack(side="left", padx=5)
+
+    # 버튼 영역
+    self.holdem_btn_frame = tk.Frame(self.root)
+    self.holdem_btn_frame.pack(pady=20)
+
+    self.holdem_action_btn = tk.Button(
+        self.holdem_btn_frame,
+        text="콜 (② 플랍 3장 공개)",
+        font=("Arial", 12, "bold"),
+        bg="#4CAF50",
+        fg="white",
+        width=22,
+        height=2,
+        command=self.holdem_next_step,
+    )
+    self.holdem_action_btn.pack(side="left", padx=10)
+
+    self.holdem_fold_btn = tk.Button(
+        self.holdem_btn_frame,
+        text="포기 (다이)",
+        font=("Arial", 12, "bold"),
+        bg="#F44336",
+        fg="white",
+        width=15,
+        height=2,
+        command=self.holdem_fold,
+    )
+    self.holdem_fold_btn.pack(side="left", padx=10)
+
+  def holdem_next_step(self):
+    self.holdem_stage += 1
+    self.pot += 1000
+
+    if self.holdem_stage == 2:
+      # 플랍 3장 오픈
+      self.holdem_comm_lbls[0].config(
+          text=self.holdem_community[0], bg="white"
+      )
+      self.holdem_comm_lbls[1].config(
+          text=self.holdem_community[1], bg="white"
+      )
+      self.holdem_comm_lbls[2].config(
+          text=self.holdem_community[2], bg="white"
+      )
+      self.holdem_status_lbl.config(
+          text=(
+              "[텍사스 홀덤 - ② 플랍] 공용 카드 3장이 공개되었습니다. 세 번째"
+              " 베팅(턴)으로 진행하세요!"
+          )
+      )
+      self.holdem_action_btn.config(text="콜 (③ 턴 카드 1장 추가)")
+    elif self.holdem_stage == 3:
+      # 턴 1장 오픈
+      self.holdem_comm_lbls[3].config(
+          text=self.holdem_community[3], bg="white"
+      )
+      self.holdem_status_lbl.config(
+          text=(
+              "[텍사스 홀덤 - ③ 턴] 공용 카드 4장이 되었습니다. 네 번째"
+              " 베팅(리버)으로 진행하세요!"
+          )
+      )
+      self.holdem_action_btn.config(text="콜 (④ 리버 카드 1장 추가)")
+    elif self.holdem_stage == 4:
+      # 리버 1장 오픈
+      self.holdem_comm_lbls[4].config(
+          text=self.holdem_community[4], bg="white"
+      )
+      self.holdem_status_lbl.config(
+          text=(
+              "[텍사스 홀덤 - ④ 리버] 마지막 공용 카드까지 5장이 모두"
+              " 공개되었습니다. 최종 쇼다운 하세요!"
+          ),
+          fg="#D32F2F",
+      )
+      self.holdem_action_btn.config(text="쇼다운 (결과 확인 및 승부)")
+    elif self.holdem_stage == 5:
+      # 쇼다운 수행
+      self.perform_holdem_showdown()
+      return
+
+    self.holdem_pot_lbl.config(text=f"현재 팟(Pot): {self.pot:,} 칩")
+
+  def perform_holdem_showdown(self):
+    # AI 홀카드 2장 공개
+    for i, card in enumerate(self.holdem_ai_hole):
+      self.holdem_ai_lbls[i].config(text=card, bg="white")
+
+    # 홀덤은 개인 2장 + 공용 5장 = 총 7장 중 최고 5장 조합
+    p_cards = self.holdem_player_hole + self.holdem_community
+    ai_cards = self.holdem_ai_hole + self.holdem_community
+
+    p_score, p_desc = self.evaluate_best_5_of_7(p_cards)
+    ai_score, ai_desc = self.evaluate_best_5_of_7(ai_cards)
+
+    if p_score > ai_score:
+      result_text = f"🎉 텍사스 홀덤 승리! (나: {p_desc} vs AI: {ai_desc})"
+      is_win = True
+      chip_change = self.pot // 2
+    elif p_score < ai_score:
+      result_text = f"😢 컴퓨터 승리 (나: {p_desc} vs AI: {ai_desc})"
+      is_win = False
+      chip_change = -(self.pot // 2)
+    else:
+      result_text = f"🤝 무승부! (족보 동일: {p_desc})"
+      is_win = None
+      chip_change = 0
+
+    self.holdem_status_lbl.config(
+        text=result_text, fg="blue" if is_win else "red"
+    )
+    self.holdem_action_btn.pack_forget()
+    self.holdem_fold_btn.pack_forget()
+
+    if is_win is not None:
+      database.update_record(self.current_user["username"], is_win, chip_change)
+
+    tk.Button(
+        self.holdem_btn_frame,
+        text="게임 선택 로비로",
+        font=("Arial", 12, "bold"),
+        bg="#2196F3",
+        fg="white",
+        width=20,
+        height=2,
+        command=self.create_game_select_lobby,
+    ).pack()
+
+  def holdem_fold(self):
+    messagebox.showinfo("패배", "포기(Fold)를 선언했습니다.")
+    database.update_record(self.current_user["username"], False, -1000)
+    self.create_game_select_lobby()
+
+  # ==================== [6] 7장 중 가장 좋은 5장을 뽑아 족보를 판정하는 알고리즘 ====================
+  def evaluate_best_5_of_7(self, cards_7):
+    import itertools
+
+    best_score = (-1, "")
+    best_desc = ""
+
+    # 7장 중 5장을 고르는 모든 조합 (7C5 = 21가지)
+    for combo in itertools.combinations(cards_7, 5):
+      score, desc = self.evaluate_5_cards(list(combo))
+      if score > best_score:
+        best_score = score
+        best_desc = desc
+
+    return best_score, best_desc
+
+  def evaluate_5_cards(self, cards_5):
     val_map = {
         "2": 2,
         "3": 3,
@@ -350,74 +801,77 @@ class PyPokerApp:
         "K": 13,
         "A": 14,
     }
-    for card in hand:
-      v_str = card[1:]
-      values.append(val_map[v_str])
+    suits = [c[0] for c in cards_5]
+    values = sorted([val_map[c[1:]] for c in cards_5], reverse=True)
 
-    values.sort(reverse=True)
+    is_flush = len(set(suits)) == 1
+
+    # 스트레이트 체크 (A,2,3,4,5 백스트레이트 예외 처리 포함)
+    is_straight = False
+    unique_vals = sorted(list(set(values)), reverse=True)
+    if len(unique_vals) == 5:
+      if unique_vals[0] - unique_vals[4] == 4:
+        is_straight = True
+      elif unique_vals == [14, 5, 4, 3, 2]:  # 백스트레이트 (A,2,3,4,5)
+        is_straight = True
+        values = [5, 4, 3, 2, 1]  # 순위 조정을 위해
+
     counts = {v: values.count(v) for v in values}
-    sorted_counts = sorted(counts.items(), key=lambda x: (x[1], x[0]), reverse=True)
-
-    # 족보 판정 점수 반환 (Tier, 주요숫자...)
+    sorted_counts = sorted(
+        counts.items(), key=lambda x: (x[1], x[0]), reverse=True
+    )
     max_count = sorted_counts[0][1]
+
+    # 1. 로열 스트레이트 플러시 / 스트레이트 플러시
+    if is_flush and is_straight:
+      if max(values) == 14 and min(values) == 10:
+        return (1300, "로열 스트레이트 플러시")
+      if unique_vals == [14, 5, 4, 3, 2]:
+        return (1200, "백 스트레이트 플러시")
+      return (1100 + max(values), "스트레이트 플러시")
+
+    # 2. 포카드
     if max_count == 4:
-      return (8, sorted_counts[0][0])  # 포카드
-    elif max_count == 3:
-      if len(sorted_counts) == 2:
-        return (7, sorted_counts[0][0])  # 풀하우스
-      return (4, sorted_counts[0][0])  # 트리플
-    elif max_count == 2:
-      if len(sorted_counts) == 3:
-        return (3, sorted_counts[0][0])  # 투페어
-      return (2, sorted_counts[0][0])  # 원페어
-    return (1, values[0])  # 하이카드
+      return (1000 + sorted_counts[0][0], "포카드")
 
-  def end_game_showdown(self):
-    # AI 카드 공개
-    for i, lbl in enumerate(self.ai_card_labels):
-      lbl.config(text=self.ai_hand[i])
+    # 3. 풀하우스
+    if max_count == 3 and len(sorted_counts) == 2:
+      return (900 + sorted_counts[0][0], "풀하우스")
 
-    p_score = self.evaluate_hand(self.player_hand)
-    ai_score = self.evaluate_hand(self.ai_hand)
+    # 4. 플러시
+    if is_flush:
+      return (800 + values[0], "플러시")
 
-    if p_score > ai_score:
-      result_text = "🎉 플레이어 승리!"
-      is_win = True
-      chip_change = 1000
-    elif p_score < ai_score:
-      result_text = "😢 컴퓨터 승리 (패배)"
-      is_win = False
-      chip_change = -1000
-    else:
-      result_text = "🤝 무승부!"
-      is_win = None
-      chip_change = 0
+    # 5. 마운틴 / 백 스트레이트 / 스트레이트
+    if is_straight:
+      if unique_vals == [14, 13, 12, 11, 10]:
+        return (750, "마운틴")
+      if unique_vals == [14, 5, 4, 3, 2]:
+        return (720, "백 스트레이트")
+      return (700 + max(values), "스트레이트")
 
-    self.status_label.config(text=result_text, fg="blue" if is_win else "red")
-    self.call_btn.pack_forget()
-    self.quit_btn.pack_forget()
+    # 6. 트리플
+    if max_count == 3:
+      return (600 + sorted_counts[0][0], "트리플")
 
-    # DB 업데이트 반영
-    if is_win is not None:
-      database.update_record(self.current_user["username"], is_win, chip_change)
+    # 7. 투페어
+    if max_count == 2 and len(sorted_counts) == 3:
+      pairs = sorted(
+          [item[0] for item in sorted_counts if item[1] == 2], reverse=True
+      )
+      return (500 + pairs[0] * 10 + pairs[1], "투페어")
 
-    tk.Button(
-        self.btn_frame,
-        text="로비로 돌아가기",
-        font=("Arial", 12, "bold"),
-        bg="#2196F3",
-        fg="white",
-        width=20,
-        height=2,
-        command=lambda: [
-            setattr(self.root, "geometry", self.root.geometry("600x500")),
-            self.create_main_lobby(),
-        ],
-    ).pack()
+    # 8. 원페어
+    if max_count == 2:
+      pair_val = sorted_counts[0][0]
+      return (400 + pair_val, "원페어")
+
+    # 9. 탑 (하이카드)
+    return (300 + values[0], f"탑 ({cards_5[0][1:]} 탑)")
 
 
 if __name__ == "__main__":
   database.init_db()
   root = tk.Tk()
-  app = PyPokerApp(root)
+  app = RealCardGamePlatform(root)
   root.mainloop()

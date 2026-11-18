@@ -1,7 +1,15 @@
 import csv
 import os
+import sys
 
-CSV_FILE = "poker_users.csv"
+# PyInstaller로 빌드되었을 때와 일반 파이썬 실행일 때 모두 현재 실행 경로를 기준으로 설정
+if getattr(sys, "frozen", False):
+  BASE_DIR = os.path.dirname(sys.executable)
+else:
+  BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+
+CSV_FILE = os.path.join(BASE_DIR, "poker_users.csv")
+
 FIELDNAMES = [
     "id",
     "username",
@@ -14,7 +22,7 @@ FIELDNAMES = [
 
 
 def init_db():
-  """CSV 파일이 없으면 기본 헤더와 샘플 계정을 생성합니다."""
+  """CSV 파일이 없으면 실행 파일 경로에 기본 헤더와 초기 계정을 생성합니다."""
   if not os.path.exists(CSV_FILE):
     with open(CSV_FILE, mode="w", newline="", encoding="utf-8-sig") as f:
       writer = csv.DictWriter(f, fieldnames=FIELDNAMES)
