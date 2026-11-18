@@ -139,7 +139,7 @@ class RealCardGamePlatform:
         command=self.create_login_screen,
     ).pack()
 
-  # ==================== [3] 게임 선택 로비 및 랭킹 보드 ====================
+  # ==================== [3] 게임 선택 로비 ====================
   def create_game_select_lobby(self):
     self.clear_window()
 
@@ -219,68 +219,150 @@ class RealCardGamePlatform:
 
     tk.Button(
         sub_btn_frame,
-        text="🏆 랭킹 보드 보기",
+        text="🏆 명예의 전당 (랭킹 보드)",
         font=("Arial", 11, "bold"),
         bg="#9C27B0",
         fg="white",
-        width=18,
+        width=22,
         height=2,
-        command=self.create_ranking_screen,
-    ).pack(side="left", padx=10)
+        command=self.open_ranking_board,
+    ).pack(side="left", padx=5)
 
     tk.Button(
         sub_btn_frame,
         text="로그아웃",
-        font=("Arial", 11),
+        font=("Arial", 10),
         width=15,
         height=2,
         command=self.create_login_screen,
-    ).pack(side="left", padx=10)
+    ).pack(side="left", padx=5)
 
-  def create_ranking_screen(self):
+  # ==================== [3-1] 승률 기반 랭킹 보드 화면 ====================
+  def open_ranking_board(self):
     self.clear_window()
     self.root.geometry("800x600")
 
     tk.Label(
-        self.root, text="🏆 유저 칩 보유 랭킹 보드", font=("Arial", 20, "bold")
+        self.root,
+        text="🏆 명예의 전당 (승률 랭킹 보드)",
+        font=("Arial", 20, "bold"),
+        fg="#9C27B0",
     ).pack(pady=20)
 
-    # 랭킹 리스트 출력 영역 (Frame + Text / Listbox)
-    rank_frame = tk.Frame(self.root)
-    rank_frame.pack(pady=10, fill="both", expand=True, padx=50)
-
-    scrollbar = tk.Scrollbar(rank_frame)
-    scrollbar.pack(side="right", fill="y")
-
-    listbox = tk.Listbox(
-        rank_frame,
-        font=("Arial", 13),
-        yscrollcommand=scrollbar.set,
-        width=60,
-        height=15,
-    )
-    listbox.pack(side="left", fill="both", expand=True)
-    scrollbar.config(command=listbox.yview)
-
-    # 유저 데이터 로드 및 칩 기준 내림차순 정렬
     users = database.load_users()
-    users.sort(key=lambda x: int(x["chips"]), reverse=True)
 
-    for idx, u in enumerate(users, start=1):
-      w = int(u["wins"])
-      l = int(u["losses"])
-      tot = w + l
-      rate = (w / tot * 100) if tot > 0 else 0
-      medal = "🥇" if idx == 1 else ("🥈" if idx == 2 else ("🥉" if idx == 3 else f"{idx}위"))
-      listbox.insert(
-          tk.END,
-          f" {medal} | 닉네임: {u['nickname']} ({u['username']})  |  보유 칩: 🪙"
-          f" {int(u['chips']):,} 칩  |  전적: {w}승 {l}패 ({rate:.1f}%)",
-      )
+    # 승률 계산 정렬 로직: (승률 내림차순, 승수 내림차순, 칩 보유량 내림차순)
+    ranked_users = []
+    for u in users:
+      w = int(u.get("wins", 0))
+      l = int(u.get("losses", 0))
+      total = w + l
+      rate = (w / total * 100) if total > 0 else 0.0
+      ranked_users.append({
+          "nickname": u.get("nickname", "unknown"),
+          "wins": w,
+          "losses": l,
+          "win_rate": rate,
+          "chips": int(u.get("chips", 0)),
+      })
+
+    ranked_users.sort(key=lambda x: (x["win_rate"], x["wins"], x["chips"]), reverse=True)
+
+    # 랭킹 테이블 프레임
+    table_frame = tk.Frame(self.root, bg="#fff", bd=2, relief="groove")
+    table_frame.pack(pady=10, padx=40, fill="both", expand=True)
+
+    # 헤더
+    header_frame = tk.Frame(table_frame, bg="#9C27B0", pady=8)
+    header_frame.pack(fill="x")
+    tk.Label(
+        header_frame,
+        text="순위",
+        font=("Arial", 12, "bold"),
+        fg="white",
+        bg="#9C27B0",
+        width=8,
+    ).pack(side="left")
+    tk.Label(
+        header_frame,
+        text="닉네임",
+        font=("Arial", 12, "bold"),
+        fg="white",
+        bg="#9C27B0",
+        width=18,
+    ).pack(side="left")
+    tk.Label(
+        header_frame,
+        text="승률",
+        font=("Arial", 12, "bold"),
+        fg="white",
+        bg="#9C27B0",
+        width=12,
+    ).pack(side="left")
+    tk.Label(
+        header_frame,
+        text="전적",
+        font=("Arial", 12, "bold"),
+        fg="white",
+        bg="#9C27B0",
+        width=15,
+    ).pack(side="left")
+    tk.Label(
+        header_frame,
+        text="보유 칩",
+        font=("Arial", 12, "bold"),
+        fg="white",
+        bg="#9C27B0",
+        width=15,
+    ).pack(side="left")
+
+    # 리스트 표시 (최대 10명)
+    for idx, user in enumerate(ranked_users[:10]):
+      row_bg = "#fce4ec" if idx == 0 else ("#f3e5f5" if idx < 3 else "white")
+      row_frame = tk.Frame(table_frame, bg=row_bg, pady=6)
+      row_frame.pack(fill="x", pady=1)
+
+      rank_str = f"👑 {idx+1}위" if idx < 3 else f"{idx+1}위"
+      tk.Label(
+          row_frame,
+          text=rank_str,
+          font=("Arial", 11, "bold"),
+          bg=row_bg,
+          width=8,
+      ).pack(side="left")
+      tk.Label(
+          row_frame,
+          text=user["nickname"],
+          font=("Arial", 11),
+          bg=row_bg,
+          width=18,
+      ).pack(side="left")
+      tk.Label(
+          row_frame,
+          text=f"{user['win_rate']:.1f}%",
+          font=("Arial", 11, "bold"),
+          fg="#D32F2F" if idx < 3 else "#333",
+          bg=row_bg,
+          width=12,
+      ).pack(side="left")
+      tk.Label(
+          row_frame,
+          text=f"{user['wins']}승 {user['losses']}패",
+          font=("Arial", 11),
+          bg=row_bg,
+          width=15,
+      ).pack(side="left")
+      tk.Label(
+          row_frame,
+          text=f"🪙 {user['chips']:,}",
+          font=("Arial", 11),
+          bg=row_bg,
+          width=15,
+      ).pack(side="left")
 
     tk.Button(
         self.root,
-        text="🏠 게임 선택 로비로",
+        text="로비로 돌아가기",
         font=("Arial", 12, "bold"),
         bg="#2196F3",
         fg="white",
