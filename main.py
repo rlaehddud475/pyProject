@@ -1,3 +1,4 @@
+import itertools
 import random
 import tkinter as tk
 from tkinter import messagebox
@@ -244,30 +245,28 @@ class RealCardGamePlatform:
     ]
     random.shuffle(self.deck)
 
-    self.sp_player_cards = [self.deck.pop(), self.deck.pop(), self.deck.pop()]
-    self.sp_ai_cards = [self.deck.pop(), self.deck.pop(), self.deck.pop()]
-
-    for _ in range(4):
-      self.sp_player_cards.append(self.deck.pop())
-      self.sp_ai_cards.append(self.deck.pop())
+    # 총 7장 미리 분배
+    self.sp_player_cards = [self.deck.pop() for _ in range(7)]
+    self.sp_ai_cards = [self.deck.pop() for _ in range(7)]
 
     self.pot = 2000
-    self.sp_step = 1
+    self.sp_step = 1  # 1: 3장, 2: 4장, 3: 5장, 4: 6장, 5: 7장(히든), 6: 쇼다운
 
     self.sp_status_lbl = tk.Label(
         self.root,
         text=(
-            "[세븐 포커 1단계] 처음 3장의 카드를 받았습니다. (앞면 2장, 뒷면 1장)"
-            " 베팅을 진행하세요!"
+            "[세븐 포커 1단계] 처음 3장을 받았습니다. 서로의 3번째 오픈 패를"
+            " 확인하고 베팅하세요!"
         ),
         font=("Arial", 11, "bold"),
         fg="#3F51B5",
     )
     self.sp_status_lbl.pack(pady=10)
 
+    # AI 영역 (1, 2번째는 비공개, 3번째 오픈, 이후 4~6번째 단계별 오픈, 7번째 비공개)
     ai_frame = tk.LabelFrame(
         self.root,
-        text=" 컴퓨터 (AI) - 7장 중 오픈된 카드 ",
+        text=" 컴퓨터 (AI) - 3번째 패 및 오픈 카드 ",
         font=("Arial", 11),
         padx=10,
         pady=5,
@@ -277,14 +276,12 @@ class RealCardGamePlatform:
     self.sp_ai_lbls = []
 
     for i in range(7):
-      card_text = self.sp_ai_cards[i] if (i not in [2, 6]) else "🂠"
       lbl = tk.Label(
           ai_frame,
-          text=card_text,
-          font=("Arial", 18, "bold"),
-          width=4,
+          text="",
+          font=("Arial", 16, "bold"),
+          width=6,
           height=2,
-          bg="white" if card_text != "🂠" else "#ccc",
           relief="solid",
       )
       lbl.pack(side="left", padx=3)
@@ -298,9 +295,13 @@ class RealCardGamePlatform:
     )
     self.sp_pot_lbl.pack(pady=5)
 
+    # 플레이어 영역 (처음 3장 모두 본인 확인 가능, 4~6번째 단계별 공개, 7번째 히든)
     player_frame = tk.LabelFrame(
         self.root,
-        text=f" {self.current_user['nickname']} (나의 패 - 총 7장) ",
+        text=(
+            f" {self.current_user['nickname']} (나의 패 - 3번째 카드는 상대에게도"
+            " 공개됨) "
+        ),
         font=("Arial", 11),
         padx=10,
         pady=5,
@@ -310,39 +311,18 @@ class RealCardGamePlatform:
     self.sp_player_lbls = []
 
     for i in range(7):
-      is_visible = False
-      if self.sp_step >= 1 and i < 3:
-        is_visible = True
-      elif self.sp_step >= 2 and i == 3:
-        is_visible = True
-      elif self.sp_step >= 3 and i == 4:
-        is_visible = True
-      elif self.sp_step >= 4 and i == 5:
-        is_visible = True
-      elif self.sp_step >= 5 and i == 6:
-        is_visible = True
-
-      if i in [2, 6] and self.sp_step < 6:
-        card_text = "🂠 (히든)"
-        bg_col = "#ffecb3"
-      elif is_visible:
-        card_text = self.sp_player_cards[i]
-        bg_col = "white"
-      else:
-        card_text = "🂠"
-        bg_col = "#e0e0e0"
-
       lbl = tk.Label(
           player_frame,
-          text=card_text,
+          text="",
           font=("Arial", 16, "bold"),
           width=6,
           height=2,
-          bg=bg_col,
           relief="solid",
       )
       lbl.pack(side="left", padx=3)
       self.sp_player_lbls.append(lbl)
+
+    self.update_seven_poker_cards_ui()
 
     self.sp_btn_frame = tk.Frame(self.root)
     self.sp_btn_frame.pack(pady=20)
@@ -371,6 +351,50 @@ class RealCardGamePlatform:
     )
     self.sp_fold_btn.pack(side="left", padx=10)
 
+  def update_seven_poker_cards_ui(self):
+    # 현재 단계(sp_step)에 따라 지급된 최대 인덱스 (1단계->2, 2단계->3, 3단계->4, 4단계->5, 5단계->6)
+    max_dealt_idx = self.sp_step + 1
+
+    for i in range(7):
+      # 1) 플레이어 카드 표시 갱신
+      if i <= max_dealt_idx:
+        if i == 6 and self.sp_step < 6:
+          # 7번째 카드는 쇼다운 전까지 히든 처리
+          p_text = "🂠 (히든)"
+          p_bg = "#ffecb3"
+        elif i == 2:
+          # 3번째 카드는 상대에게도 보이는 오픈 패임을 강조
+          p_text = f"{self.sp_player_cards[i]}\n(오픈)"
+          p_bg = "#e3f2fd"
+        else:
+          p_text = self.sp_player_cards[i]
+          p_bg = "white"
+      else:
+        p_text = "🂠"
+        p_bg = "#e0e0e0"
+
+      self.sp_player_lbls[i].config(text=p_text, bg=p_bg)
+
+      # 2) AI 카드 표시 갱신
+      if i <= max_dealt_idx:
+        if i in [2, 3, 4, 5] or self.sp_step == 6:
+          # AI의 3, 4, 5, 6번째 카드는 오픈 패이므로 플레이어가 볼 수 있음
+          ai_text = (
+              f"{self.sp_ai_cards[i]}\n(오픈)"
+              if (i == 2 and self.sp_step < 6)
+              else self.sp_ai_cards[i]
+          )
+          ai_bg = "#e3f2fd" if (i == 2 and self.sp_step < 6) else "white"
+        else:
+          # AI의 1, 2, 7번째 카드는 쇼다운 전까지 뒷면
+          ai_text = "🂠 (비공개)"
+          ai_bg = "#ccc"
+      else:
+        ai_text = "🂠"
+        ai_bg = "#e0e0e0"
+
+      self.sp_ai_lbls[i].config(text=ai_text, bg=ai_bg)
+
   def seven_poker_next(self):
     self.sp_step += 1
     self.pot += 500
@@ -378,7 +402,7 @@ class RealCardGamePlatform:
     if self.sp_step == 2:
       self.sp_status_lbl.config(
           text=(
-              "[세븐 포커 2단계] 4번째 카드를 받았습니다 (앞면). 베팅을"
+              "[세븐 포커 2단계] 서로 4번째 오픈 카드를 받았습니다. 베팅을"
               " 진행하세요!"
           )
       )
@@ -386,7 +410,7 @@ class RealCardGamePlatform:
     elif self.sp_step == 3:
       self.sp_status_lbl.config(
           text=(
-              "[세븐 포커 3단계] 5번째 카드를 받았습니다 (앞면). 베팅을"
+              "[세븐 포커 3단계] 서로 5번째 오픈 카드를 받았습니다. 베팅을"
               " 진행하세요!"
           )
       )
@@ -394,58 +418,30 @@ class RealCardGamePlatform:
     elif self.sp_step == 4:
       self.sp_status_lbl.config(
           text=(
-              "[세븐 포커 4단계] 6번째 카드를 받았습니다 (앞면). 베팅을"
+              "[세븐 포커 4단계] 서로 6번째 오픈 카드를 받았습니다. 베팅을"
               " 진행하세요!"
           )
       )
-      self.sp_action_btn.config(text="콜 (마지막 7번째 뒷면 카드 받기)")
+      self.sp_action_btn.config(text="콜 (마지막 7번째 히든 카드 받기)")
     elif self.sp_step == 5:
       self.sp_status_lbl.config(
           text=(
-              "[세븐 포커 5단계] 마지막 7번째 카드를 뒷면으로 받았습니다. 최종"
-              " 베팅 후 쇼다운 하세요!"
+              "[세븐 포커 5단계] 마지막 7번째 카드를 히든(뒷면)으로 받았습니다."
+              " 최종 베팅 후 쇼다운 하세요!"
           ),
           fg="#D32F2F",
       )
       self.sp_action_btn.config(text="쇼다운 (결과 확인 및 승부)")
     elif self.sp_step == 6:
-      self.sp_step = 6
       self.perform_seven_poker_showdown()
       return
 
-    for i in range(7):
-      is_visible = False
-      if self.sp_step >= 1 and i < 3:
-        is_visible = True
-      elif self.sp_step >= 2 and i == 3:
-        is_visible = True
-      elif self.sp_step >= 3 and i == 4:
-        is_visible = True
-      elif self.sp_step >= 4 and i == 5:
-        is_visible = True
-      elif self.sp_step >= 5 and i == 6:
-        is_visible = True
-
-      if i in [2, 6] and self.sp_step < 6:
-        card_text = "🂠 (히든)"
-        bg_col = "#ffecb3"
-      elif is_visible:
-        card_text = self.sp_player_cards[i]
-        bg_col = "white"
-      else:
-        card_text = "🂠"
-        bg_col = "#e0e0e0"
-
-      self.sp_player_lbls[i].config(text=card_text, bg=bg_col)
-
+    self.update_seven_poker_cards_ui()
     self.sp_pot_lbl.config(text=f"현재 팟(Pot): {self.pot:,} 칩")
 
   def perform_seven_poker_showdown(self):
-    for i, lbl in enumerate(self.sp_ai_lbls):
-      lbl.config(text=self.sp_ai_cards[i], bg="white")
-
-    for i, lbl in enumerate(self.sp_player_lbls):
-      lbl.config(text=self.sp_player_cards[i], bg="white")
+    # 쇼다운 시 모든 카드 공개
+    self.update_seven_poker_cards_ui()
 
     p_score, p_desc = self.evaluate_best_5_of_7(self.sp_player_cards)
     ai_score, ai_desc = self.evaluate_best_5_of_7(self.sp_ai_cards)
@@ -738,11 +734,9 @@ class RealCardGamePlatform:
 
   # ==================== [6] 7장 중 가장 좋은 5장을 뽑아 족보를 판정하는 알고리즘 ====================
   def evaluate_best_5_of_7(self, cards_7):
-    import itertools
-
     best_score = -1
     best_desc = ""
-    best_combo_values = []
+    best_combo_values = ()
 
     for combo in itertools.combinations(cards_7, 5):
       score, desc, val_tuple = self.evaluate_5_cards(list(combo))
@@ -835,7 +829,9 @@ class RealCardGamePlatform:
       kickers = tuple(v for v in values if v != pair_val)
       return (400 + pair_val, "원페어", (pair_val,) + kickers)
 
-    return (300 + values[0], f"탑 ({cards_5[0][1:]} 탑)", tuple(values))
+    # 탑(하이카드) 표시 시 가장 높은 숫자의 카드를 찾도록 보정
+    highest_card = max(cards_5, key=lambda c: val_map[c[1:]])
+    return (300 + values[0], f"탑 ({highest_card[1:]} 탑)", tuple(values))
 
 
 if __name__ == "__main__":
