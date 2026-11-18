@@ -139,7 +139,7 @@ class RealCardGamePlatform:
         command=self.create_login_screen,
     ).pack()
 
-  # ==================== [3] 게임 선택 로비 ====================
+  # ==================== [3] 게임 선택 로비 및 랭킹 보드 ====================
   def create_game_select_lobby(self):
     self.clear_window()
 
@@ -214,13 +214,80 @@ class RealCardGamePlatform:
         command=self.start_slot_machine,
     ).pack(side="left", padx=10)
 
+    sub_btn_frame = tk.Frame(self.root)
+    sub_btn_frame.pack(pady=10)
+
+    tk.Button(
+        sub_btn_frame,
+        text="🏆 랭킹 보드 보기",
+        font=("Arial", 11, "bold"),
+        bg="#9C27B0",
+        fg="white",
+        width=18,
+        height=2,
+        command=self.create_ranking_screen,
+    ).pack(side="left", padx=10)
+
+    tk.Button(
+        sub_btn_frame,
+        text="로그아웃",
+        font=("Arial", 11),
+        width=15,
+        height=2,
+        command=self.create_login_screen,
+    ).pack(side="left", padx=10)
+
+  def create_ranking_screen(self):
+    self.clear_window()
+    self.root.geometry("800x600")
+
+    tk.Label(
+        self.root, text="🏆 유저 칩 보유 랭킹 보드", font=("Arial", 20, "bold")
+    ).pack(pady=20)
+
+    # 랭킹 리스트 출력 영역 (Frame + Text / Listbox)
+    rank_frame = tk.Frame(self.root)
+    rank_frame.pack(pady=10, fill="both", expand=True, padx=50)
+
+    scrollbar = tk.Scrollbar(rank_frame)
+    scrollbar.pack(side="right", fill="y")
+
+    listbox = tk.Listbox(
+        rank_frame,
+        font=("Arial", 13),
+        yscrollcommand=scrollbar.set,
+        width=60,
+        height=15,
+    )
+    listbox.pack(side="left", fill="both", expand=True)
+    scrollbar.config(command=listbox.yview)
+
+    # 유저 데이터 로드 및 칩 기준 내림차순 정렬
+    users = database.load_users()
+    users.sort(key=lambda x: int(x["chips"]), reverse=True)
+
+    for idx, u in enumerate(users, start=1):
+      w = int(u["wins"])
+      l = int(u["losses"])
+      tot = w + l
+      rate = (w / tot * 100) if tot > 0 else 0
+      medal = "🥇" if idx == 1 else ("🥈" if idx == 2 else ("🥉" if idx == 3 else f"{idx}위"))
+      listbox.insert(
+          tk.END,
+          f" {medal} | 닉네임: {u['nickname']} ({u['username']})  |  보유 칩: 🪙"
+          f" {int(u['chips']):,} 칩  |  전적: {w}승 {l}패 ({rate:.1f}%)",
+      )
+
     tk.Button(
         self.root,
-        text="로그아웃",
-        font=("Arial", 10),
-        width=15,
-        command=self.create_login_screen,
-    ).pack(pady=10)
+        text="🏠 게임 선택 로비로",
+        font=("Arial", 12, "bold"),
+        bg="#2196F3",
+        fg="white",
+        width=20,
+        height=2,
+        command=self.create_game_select_lobby,
+    ).pack(pady=20)
 
   def sync_user_data(self):
     users = database.load_users()
@@ -488,7 +555,6 @@ class RealCardGamePlatform:
           text=f"보유 칩: 🪙 {int(self.current_user['chips']):,} 칩"
       )
 
-    # 게임 종료 후 하단 버튼 영역 (다시하기 + 로비로)
     end_btn_frame = tk.Frame(self.sp_btn_frame)
     end_btn_frame.pack()
 
@@ -515,9 +581,43 @@ class RealCardGamePlatform:
     ).pack(side="left", padx=5)
 
   def seven_poker_fold(self):
-    messagebox.showinfo("패배", "포기(Fold)를 선언했습니다.")
     database.update_record(self.current_user["username"], False, -1000)
-    self.create_game_select_lobby()
+    self.sync_user_data()
+    self.my_chips_lbl.config(
+        text=f"보유 칩: 🪙 {int(self.current_user['chips']):,} 칩"
+    )
+
+    self.sp_status_lbl.config(
+        text="😢 다이(Fold)를 선언하여 게임을 포기했습니다 (-1,000 칩)",
+        fg="red",
+    )
+    self.sp_action_btn.pack_forget()
+    self.sp_fold_btn.pack_forget()
+
+    end_btn_frame = tk.Frame(self.sp_btn_frame)
+    end_btn_frame.pack()
+
+    tk.Button(
+        end_btn_frame,
+        text="🔄 다시하기",
+        font=("Arial", 12, "bold"),
+        bg="#4CAF50",
+        fg="white",
+        width=14,
+        height=2,
+        command=self.start_seven_poker,
+    ).pack(side="left", padx=5)
+
+    tk.Button(
+        end_btn_frame,
+        text="🏠 게임 선택 로비",
+        font=("Arial", 12, "bold"),
+        bg="#2196F3",
+        fg="white",
+        width=14,
+        height=2,
+        command=self.create_game_select_lobby,
+    ).pack(side="left", padx=5)
 
   # ==================== [5] 텍사스 홀덤 모드 ====================
   def start_holdem_game(self):
@@ -768,7 +868,6 @@ class RealCardGamePlatform:
           text=f"보유 칩: 🪙 {int(self.current_user['chips']):,} 칩"
       )
 
-    # 게임 종료 후 하단 버튼 영역 (다시하기 + 로비로)
     end_btn_frame = tk.Frame(self.holdem_btn_frame)
     end_btn_frame.pack()
 
@@ -795,9 +894,42 @@ class RealCardGamePlatform:
     ).pack(side="left", padx=5)
 
   def holdem_fold(self):
-    messagebox.showinfo("패배", "포기(Fold)를 선언했습니다.")
     database.update_record(self.current_user["username"], False, -1000)
-    self.create_game_select_lobby()
+    self.sync_user_data()
+    self.holdem_my_chips_lbl.config(
+        text=f"보유 칩: 🪙 {int(self.current_user['chips']):,} 칩"
+    )
+
+    self.holdem_status_lbl.config(
+        text="😢 포기(Fold)를 선언했습니다 (-1,000 칩)", fg="red"
+    )
+    self.holdem_action_btn.pack_forget()
+    self.holdem_fold_btn.pack_forget()
+
+    end_btn_frame = tk.Frame(self.holdem_btn_frame)
+    end_btn_frame.pack()
+
+    tk.Button(
+        end_btn_frame,
+        text="🔄 다시하기",
+        font=("Arial", 12, "bold"),
+        bg="#4CAF50",
+        fg="white",
+        width=14,
+        height=2,
+        command=self.start_holdem_game,
+    ).pack(side="left", padx=5)
+
+    tk.Button(
+        end_btn_frame,
+        text="🏠 게임 선택 로비",
+        font=("Arial", 12, "bold"),
+        bg="#2196F3",
+        fg="white",
+        width=14,
+        height=2,
+        command=self.create_game_select_lobby,
+    ).pack(side="left", padx=5)
 
   # ==================== [6] 슬롯 머신 모드 ====================
   def start_slot_machine(self):
@@ -943,6 +1075,21 @@ class RealCardGamePlatform:
     return best_score, best_desc
 
   def evaluate_5_cards(self, cards_5):
+    rev_val_map = {
+        2: "2",
+        3: "3",
+        4: "4",
+        5: "5",
+        6: "6",
+        7: "7",
+        8: "8",
+        9: "9",
+        10: "10",
+        11: "J",
+        12: "Q",
+        13: "K",
+        14: "A",
+    }
     val_map = {
         "2": 2,
         "3": 3,
@@ -988,12 +1135,15 @@ class RealCardGamePlatform:
     if max_count == 4:
       four_val = sorted_counts[0][0]
       kicker = sorted_counts[1][0]
-      return (1000 + four_val, "포카드", (four_val, kicker))
+      f_name = rev_val_map[four_val]
+      return (1000 + four_val, f"{f_name} 포카드", (four_val, kicker))
 
     if max_count == 3 and len(sorted_counts) == 2:
       tri_val = sorted_counts[0][0]
       pair_val = sorted_counts[1][0]
-      return (900 + tri_val, "풀하우스", (tri_val, pair_val))
+      t_name = rev_val_map[tri_val]
+      p_name = rev_val_map[pair_val]
+      return (900 + tri_val, f"{t_name} 풀하우스", (tri_val, pair_val))
 
     if is_flush:
       return (800 + values[0], "플러시", tuple(values))
@@ -1007,20 +1157,28 @@ class RealCardGamePlatform:
 
     if max_count == 3:
       tri_val = sorted_counts[0][0]
+      t_name = rev_val_map[tri_val]
       kickers = tuple(v for v in values if v != tri_val)
-      return (600 + tri_val, "트리플", (tri_val,) + kickers)
+      return (600 + tri_val, f"{t_name} 트리플", (tri_val,) + kickers)
 
     if max_count == 2 and len(sorted_counts) == 3:
       pairs = sorted(
           [item[0] for item in sorted_counts if item[1] == 2], reverse=True
       )
+      p1_name = rev_val_map[pairs[0]]
+      p2_name = rev_val_map[pairs[1]]
       kicker = [item[0] for item in sorted_counts if item[1] == 1][0]
-      return (500 + pairs[0] * 10 + pairs[1], "투페어", (pairs[0], pairs[1], kicker))
+      return (
+          500 + pairs[0] * 10 + pairs[1],
+          f"{p1_name}·{p2_name} 투페어",
+          (pairs[0], pairs[1], kicker),
+      )
 
     if max_count == 2:
       pair_val = sorted_counts[0][0]
+      p_name = rev_val_map[pair_val]
       kickers = tuple(v for v in values if v != pair_val)
-      return (400 + pair_val, "원페어", (pair_val,) + kickers)
+      return (400 + pair_val, f"{p_name} 원페어", (pair_val,) + kickers)
 
     highest_card = max(cards_5, key=lambda c: val_map[c[1:]])
     return (300 + values[0], f"탑 ({highest_card[1:]} 탑)", tuple(values))
