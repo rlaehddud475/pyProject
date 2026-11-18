@@ -10,9 +10,9 @@ class RealCardGamePlatform:
   def __init__(self, root):
     self.root = root
     self.root.title(
-        "Python 기말과제 - 정통 세븐포커 & 텍사스 홀덤 플랫폼"
+        "Python 기말과제 - 카드 게임 & 슬롯머신 통합 플랫폼"
     )
-    self.root.geometry("900x700")
+    self.root.geometry("900x720")
     self.root.resizable(False, False)
 
     self.current_user = None
@@ -27,7 +27,7 @@ class RealCardGamePlatform:
     self.clear_window()
 
     tk.Label(
-        self.root, text="🃏 카드 게임 통합 플랫폼", font=("Arial", 20, "bold")
+        self.root, text="🎰 아케이드 게임 통합 플랫폼", font=("Arial", 20, "bold")
     ).pack(pady=40)
 
     frame = tk.Frame(self.root)
@@ -160,48 +160,60 @@ class RealCardGamePlatform:
         self.root,
         text=f"👤 {nickname} 님, 플레이할 게임을 선택하세요!",
         font=("Arial", 18, "bold"),
-    ).pack(pady=30)
+    ).pack(pady=20)
 
     info_frame = tk.Frame(self.root, bg="#f0f0f0", bd=2, relief="groove")
-    info_frame.pack(pady=10, ipadx=20, ipady=12)
+    info_frame.pack(pady=5, ipadx=20, ipady=10)
 
     tk.Label(
         info_frame,
         text=f"보유 칩: 🪙 {chips:,} 칩",
         font=("Arial", 13),
         bg="#f0f0f0",
-    ).pack(anchor="w", pady=3)
+    ).pack(anchor="w", pady=2)
     tk.Label(
         info_frame,
         text=f"전적: {wins}승 {losses}패 (승률: {win_rate:.1f}%)",
         font=("Arial", 11),
         bg="#f0f0f0",
-    ).pack(anchor="w", pady=3)
+    ).pack(anchor="w", pady=2)
 
     game_btn_frame = tk.Frame(self.root)
-    game_btn_frame.pack(pady=25)
+    game_btn_frame.pack(pady=15)
 
+    # 버튼 3개 배치 (세븐포커, 텍사스홀덤, 슬롯머신)
     tk.Button(
         game_btn_frame,
-        text="🃏 세븐 포커\n(3장 시작 ➔ 7장 받아 최고 5장 승부)",
-        font=("Arial", 12, "bold"),
+        text="🃏 세븐 포커\n(7장 받아 최고 5장 승부)",
+        font=("Arial", 11, "bold"),
         bg="#3F51B5",
         fg="white",
-        width=28,
+        width=22,
         height=4,
         command=self.start_seven_poker,
-    ).pack(side="left", padx=15)
+    ).pack(side="left", padx=10)
 
     tk.Button(
         game_btn_frame,
-        text="🎲 텍사스 홀덤\n(프리플랍 ➔ 플랍 ➔ 턴 ➔ 리버 ➔ 쇼다운)",
-        font=("Arial", 12, "bold"),
+        text="🎲 텍사스 홀덤\n(공용카드 5장 승부)",
+        font=("Arial", 11, "bold"),
         bg="#FF9800",
         fg="white",
-        width=28,
+        width=22,
         height=4,
         command=self.start_holdem_game,
-    ).pack(side="left", padx=15)
+    ).pack(side="left", padx=10)
+
+    tk.Button(
+        game_btn_frame,
+        text="🎰 슬롯 머신\n(잭팟을 노려보세요!)",
+        font=("Arial", 11, "bold"),
+        bg="#E91E63",
+        fg="white",
+        width=22,
+        height=4,
+        command=self.start_slot_machine,
+    ).pack(side="left", padx=10)
 
     tk.Button(
         self.root,
@@ -211,18 +223,25 @@ class RealCardGamePlatform:
         command=self.create_login_screen,
     ).pack(pady=10)
 
+  def sync_user_data(self):
+    users = database.load_users()
+    for u in users:
+      if u["username"] == self.current_user["username"]:
+        self.current_user = u
+        break
+
   # ==================== [4] 세븐 포커 모드 ====================
   def start_seven_poker(self):
+    self.sync_user_data()
     if int(self.current_user["chips"]) < 1000:
       messagebox.showwarning(
           "파산", "칩이 부족합니다! (기본 10,000칩 충전)"
       )
       database.update_record(self.current_user["username"], False, 10000)
-      self.create_game_select_lobby()
-      return
+      self.sync_user_data()
 
     self.clear_window()
-    self.root.geometry("900x700")
+    self.root.geometry("900x720")
 
     self.deck = [
         f"{suit}{val}"
@@ -245,12 +264,30 @@ class RealCardGamePlatform:
     ]
     random.shuffle(self.deck)
 
-    # 총 7장 미리 분배
     self.sp_player_cards = [self.deck.pop() for _ in range(7)]
     self.sp_ai_cards = [self.deck.pop() for _ in range(7)]
 
     self.pot = 2000
-    self.sp_step = 1  # 1: 3장, 2: 4장, 3: 5장, 4: 6장, 5: 7장(히든), 6: 쇼다운
+    self.sp_step = 1
+
+    top_info_frame = tk.Frame(self.root)
+    top_info_frame.pack(pady=5)
+
+    self.my_chips_lbl = tk.Label(
+        top_info_frame,
+        text=f"보유 칩: 🪙 {int(self.current_user['chips']):,} 칩",
+        font=("Arial", 13, "bold"),
+        fg="#2E7D32",
+    )
+    self.my_chips_lbl.pack(side="left", padx=15)
+
+    self.sp_pot_lbl = tk.Label(
+        top_info_frame,
+        text=f"현재 팟(Pot): {self.pot:,} 칩",
+        font=("Arial", 13, "bold"),
+        fg="#D32F2F",
+    )
+    self.sp_pot_lbl.pack(side="left", padx=15)
 
     self.sp_status_lbl = tk.Label(
         self.root,
@@ -261,9 +298,8 @@ class RealCardGamePlatform:
         font=("Arial", 11, "bold"),
         fg="#3F51B5",
     )
-    self.sp_status_lbl.pack(pady=10)
+    self.sp_status_lbl.pack(pady=5)
 
-    # AI 영역 (1, 2번째는 비공개, 3번째 오픈, 이후 4~6번째 단계별 오픈, 7번째 비공개)
     ai_frame = tk.LabelFrame(
         self.root,
         text=" 컴퓨터 (AI) - 3번째 패 및 오픈 카드 ",
@@ -287,15 +323,6 @@ class RealCardGamePlatform:
       lbl.pack(side="left", padx=3)
       self.sp_ai_lbls.append(lbl)
 
-    self.sp_pot_lbl = tk.Label(
-        self.root,
-        text=f"현재 팟(Pot): {self.pot:,} 칩",
-        font=("Arial", 12, "bold"),
-        fg="#D32F2F",
-    )
-    self.sp_pot_lbl.pack(pady=5)
-
-    # 플레이어 영역 (처음 3장 모두 본인 확인 가능, 4~6번째 단계별 공개, 7번째 히든)
     player_frame = tk.LabelFrame(
         self.root,
         text=(
@@ -325,7 +352,7 @@ class RealCardGamePlatform:
     self.update_seven_poker_cards_ui()
 
     self.sp_btn_frame = tk.Frame(self.root)
-    self.sp_btn_frame.pack(pady=20)
+    self.sp_btn_frame.pack(pady=15)
 
     self.sp_action_btn = tk.Button(
         self.sp_btn_frame,
@@ -352,18 +379,14 @@ class RealCardGamePlatform:
     self.sp_fold_btn.pack(side="left", padx=10)
 
   def update_seven_poker_cards_ui(self):
-    # 현재 단계(sp_step)에 따라 지급된 최대 인덱스 (1단계->2, 2단계->3, 3단계->4, 4단계->5, 5단계->6)
     max_dealt_idx = self.sp_step + 1
 
     for i in range(7):
-      # 1) 플레이어 카드 표시 갱신
       if i <= max_dealt_idx:
         if i == 6 and self.sp_step < 6:
-          # 7번째 카드는 쇼다운 전까지 히든 처리
           p_text = "🂠 (히든)"
           p_bg = "#ffecb3"
         elif i == 2:
-          # 3번째 카드는 상대에게도 보이는 오픈 패임을 강조
           p_text = f"{self.sp_player_cards[i]}\n(오픈)"
           p_bg = "#e3f2fd"
         else:
@@ -375,10 +398,8 @@ class RealCardGamePlatform:
 
       self.sp_player_lbls[i].config(text=p_text, bg=p_bg)
 
-      # 2) AI 카드 표시 갱신
       if i <= max_dealt_idx:
         if i in [2, 3, 4, 5] or self.sp_step == 6:
-          # AI의 3, 4, 5, 6번째 카드는 오픈 패이므로 플레이어가 볼 수 있음
           ai_text = (
               f"{self.sp_ai_cards[i]}\n(오픈)"
               if (i == 2 and self.sp_step < 6)
@@ -386,7 +407,6 @@ class RealCardGamePlatform:
           )
           ai_bg = "#e3f2fd" if (i == 2 and self.sp_step < 6) else "white"
         else:
-          # AI의 1, 2, 7번째 카드는 쇼다운 전까지 뒷면
           ai_text = "🂠 (비공개)"
           ai_bg = "#ccc"
       else:
@@ -440,7 +460,6 @@ class RealCardGamePlatform:
     self.sp_pot_lbl.config(text=f"현재 팟(Pot): {self.pot:,} 칩")
 
   def perform_seven_poker_showdown(self):
-    # 쇼다운 시 모든 카드 공개
     self.update_seven_poker_cards_ui()
 
     p_score, p_desc = self.evaluate_best_5_of_7(self.sp_player_cards)
@@ -465,6 +484,10 @@ class RealCardGamePlatform:
 
     if is_win is not None:
       database.update_record(self.current_user["username"], is_win, chip_change)
+      self.sync_user_data()
+      self.my_chips_lbl.config(
+          text=f"보유 칩: 🪙 {int(self.current_user['chips']):,} 칩"
+      )
 
     tk.Button(
         self.sp_btn_frame,
@@ -478,22 +501,22 @@ class RealCardGamePlatform:
     ).pack()
 
   def seven_poker_fold(self):
-    messagebox.showinfo("패배", "다이(Fold)를 선언하여 게임을 포기했습니다.")
+    messagebox.showinfo("패배", "포기(Fold)를 선언했습니다.")
     database.update_record(self.current_user["username"], False, -1000)
     self.create_game_select_lobby()
 
   # ==================== [5] 텍사스 홀덤 모드 ====================
   def start_holdem_game(self):
+    self.sync_user_data()
     if int(self.current_user["chips"]) < 1000:
       messagebox.showwarning(
           "파산", "칩이 부족합니다! (기본 10,000칩 충전)"
       )
       database.update_record(self.current_user["username"], False, 10000)
-      self.create_game_select_lobby()
-      return
+      self.sync_user_data()
 
     self.clear_window()
-    self.root.geometry("900x700")
+    self.root.geometry("900x720")
 
     self.deck = [
         f"{suit}{val}"
@@ -529,6 +552,25 @@ class RealCardGamePlatform:
     self.pot = 2000
     self.holdem_stage = 1
 
+    top_info_frame = tk.Frame(self.root)
+    top_info_frame.pack(pady=5)
+
+    self.holdem_my_chips_lbl = tk.Label(
+        top_info_frame,
+        text=f"보유 칩: 🪙 {int(self.current_user['chips']):,} 칩",
+        font=("Arial", 13, "bold"),
+        fg="#2E7D32",
+    )
+    self.holdem_my_chips_lbl.pack(side="left", padx=15)
+
+    self.holdem_pot_lbl = tk.Label(
+        top_info_frame,
+        text=f"현재 팟(Pot): {self.pot:,} 칩",
+        font=("Arial", 13, "bold"),
+        fg="#388E3C",
+    )
+    self.holdem_pot_lbl.pack(side="left", padx=15)
+
     self.holdem_status_lbl = tk.Label(
         self.root,
         text=(
@@ -538,7 +580,7 @@ class RealCardGamePlatform:
         font=("Arial", 11, "bold"),
         fg="#FF9800",
     )
-    self.holdem_status_lbl.pack(pady=10)
+    self.holdem_status_lbl.pack(pady=5)
 
     ai_frame = tk.LabelFrame(
         self.root, text=" 컴퓨터 (AI 홀 카드) ", font=("Arial", 11), padx=10, pady=5
@@ -580,14 +622,6 @@ class RealCardGamePlatform:
       lbl.pack(side="left", padx=5)
       self.holdem_comm_lbls.append(lbl)
 
-    self.holdem_pot_lbl = tk.Label(
-        self.root,
-        text=f"현재 팟(Pot): {self.pot:,} 칩",
-        font=("Arial", 12, "bold"),
-        fg="#388E3C",
-    )
-    self.holdem_pot_lbl.pack(pady=5)
-
     player_frame = tk.LabelFrame(
         self.root,
         text=f" {self.current_user['nickname']} (나의 홀 카드 2장) ",
@@ -608,7 +642,7 @@ class RealCardGamePlatform:
       ).pack(side="left", padx=5)
 
     self.holdem_btn_frame = tk.Frame(self.root)
-    self.holdem_btn_frame.pack(pady=20)
+    self.holdem_btn_frame.pack(pady=15)
 
     self.holdem_action_btn = tk.Button(
         self.holdem_btn_frame,
@@ -715,6 +749,10 @@ class RealCardGamePlatform:
 
     if is_win is not None:
       database.update_record(self.current_user["username"], is_win, chip_change)
+      self.sync_user_data()
+      self.holdem_my_chips_lbl.config(
+          text=f"보유 칩: 🪙 {int(self.current_user['chips']):,} 칩"
+      )
 
     tk.Button(
         self.holdem_btn_frame,
@@ -732,7 +770,139 @@ class RealCardGamePlatform:
     database.update_record(self.current_user["username"], False, -1000)
     self.create_game_select_lobby()
 
-  # ==================== [6] 7장 중 가장 좋은 5장을 뽑아 족보를 판정하는 알고리즘 ====================
+  # ==================== [6] 슬롯 머신 모드 (NEW!) ====================
+  def start_slot_machine(self):
+    self.sync_user_data()
+    if int(self.current_user["chips"]) < 500:
+      messagebox.showwarning(
+          "파산", "칩이 부족합니다! (기본 10,000칩 충전)"
+      )
+      database.update_record(self.current_user["username"], False, 10000)
+      self.sync_user_data()
+
+    self.clear_window()
+    self.root.geometry("800x600")
+
+    # 상단 내 잔액 표시
+    top_frame = tk.Frame(self.root)
+    top_frame.pack(pady=15)
+
+    self.slot_chips_lbl = tk.Label(
+        top_frame,
+        text=f"보유 칩: 🪙 {int(self.current_user['chips']):,} 칩",
+        font=("Arial", 14, "bold"),
+        fg="#2E7D32",
+    )
+    self.slot_chips_lbl.pack()
+
+    tk.Label(
+        self.root,
+        text="🎰 럭키 777 슬롯 머신",
+        font=("Arial", 22, "bold"),
+        fg="#E91E63",
+    ).pack(pady=10)
+
+    # 슬롯머신 릴 화면 (3개 칸)
+    reel_frame = tk.Frame(self.root, bg="#222", bd=5, relief="ridge")
+    reel_frame.pack(pady=20)
+
+    self.slot_symbols = ["🍒", "🍋", "🍊", "🍇", "🔔", "💎", "7️⃣"]
+    self.reel_labels = []
+
+    for _ in range(3):
+      lbl = tk.Label(
+          reel_frame,
+          text="🎰",
+          font=("Arial", 45),
+          width=3,
+          height=2,
+          bg="white",
+          relief="sunken",
+      )
+      lbl.pack(side="left", padx=10, pady=10)
+      self.reel_labels.append(lbl)
+
+    # 결과 안내 메시지
+    self.slot_status_lbl = tk.Label(
+        self.root,
+        text="배팅 금액: 500 칩 | [SPIN] 버튼을 눌러 돌리세요!",
+        font=("Arial", 13, "bold"),
+        fg="#333",
+    )
+    self.slot_status_lbl.pack(pady=15)
+
+    # 조작 버튼
+    btn_frame = tk.Frame(self.root)
+    btn_frame.pack(pady=15)
+
+    self.spin_btn = tk.Button(
+        btn_frame,
+        text="🎰 SPIN! (500칩 베팅)",
+        font=("Arial", 14, "bold"),
+        bg="#E91E63",
+        fg="white",
+        width=20,
+        height=2,
+        command=self.spin_slot_machine,
+    )
+    self.spin_btn.pack(side="left", padx=10)
+
+    tk.Button(
+        btn_frame,
+        text="로비로 돌아가기",
+        font=("Arial", 12, "bold"),
+        bg="#2196F3",
+        fg="white",
+        width=15,
+        height=2,
+        command=self.create_game_select_lobby,
+    ).pack(side="left", padx=10)
+
+  def spin_slot_machine(self):
+    bet_cost = 500
+    self.sync_user_data()
+    if int(self.current_user["chips"]) < bet_cost:
+      messagebox.showwarning("경고", "보유 칩이 부족합니다!")
+      return
+
+    # 베팅금 차감
+    database.update_record(self.current_user["username"], False, -bet_cost)
+
+    # 릴 3개 무작위 추첨
+    r1 = random.choice(self.slot_symbols)
+    r2 = random.choice(self.slot_symbols)
+    r3 = random.choice(self.slot_symbols)
+
+    self.reel_labels[0].config(text=r1)
+    self.reel_labels[1].config(text=r2)
+    self.reel_labels[2].config(text=r3)
+
+    # 당첨 판정 및 배율 보상
+    reward = 0
+    if r1 == "7️⃣" and r2 == "7️⃣" and r3 == "7️⃣":
+      reward = 25000  # 잭팟 (50배)
+      msg = "🔥 대박! 777 잭팟 당첨!! (+25,000 칩)"
+    elif r1 == r2 == r3:
+      reward = 5000  # 트리플 (10배)
+      msg = f"🎉 {r1} 트리플 당첨!! (+5,000 칩)"
+    elif r1 == r2 or r2 == r3 or r1 == r3:
+      reward = 1000  # 더블 (2배)
+      msg = "✨ 투 림(더블) 당첨! (+1,000 칩)"
+    else:
+      msg = "😢 아쉽네요... 꽝!"
+
+    if reward > 0:
+      database.update_record(self.current_user["username"], True, reward)
+      self.slot_status_lbl.config(text=msg, fg="blue")
+    else:
+      self.slot_status_lbl.config(text=msg, fg="red")
+
+    self.sync_user_data()
+    self.slot_chips_lbl.config(
+        text=f"보유 칩: 🪙 {int(self.current_user['chips']):,} 칩"
+    )
+
+  # ==================== [7] 7장 중 가장 좋은 5장을 뽑아 족보를 판정하는 알고리즘 ====================
   def evaluate_best_5_of_7(self, cards_7):
     best_score = -1
     best_desc = ""
@@ -829,7 +999,6 @@ class RealCardGamePlatform:
       kickers = tuple(v for v in values if v != pair_val)
       return (400 + pair_val, "원페어", (pair_val,) + kickers)
 
-    # 탑(하이카드) 표시 시 가장 높은 숫자의 카드를 찾도록 보정
     highest_card = max(cards_5, key=lambda c: val_map[c[1:]])
     return (300 + values[0], f"탑 ({highest_card[1:]} 탑)", tuple(values))
 
