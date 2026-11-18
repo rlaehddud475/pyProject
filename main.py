@@ -181,7 +181,6 @@ class RealCardGamePlatform:
     game_btn_frame = tk.Frame(self.root)
     game_btn_frame.pack(pady=15)
 
-    # 버튼 3개 배치 (세븐포커, 텍사스홀덤, 슬롯머신)
     tk.Button(
         game_btn_frame,
         text="🃏 세븐 포커\n(7장 받아 최고 5장 승부)",
@@ -770,7 +769,7 @@ class RealCardGamePlatform:
     database.update_record(self.current_user["username"], False, -1000)
     self.create_game_select_lobby()
 
-  # ==================== [6] 슬롯 머신 모드 (NEW!) ====================
+  # ==================== [6] 슬롯 머신 모드 (심볼 7 수정 완료) ====================
   def start_slot_machine(self):
     self.sync_user_data()
     if int(self.current_user["chips"]) < 500:
@@ -797,7 +796,7 @@ class RealCardGamePlatform:
 
     tk.Label(
         self.root,
-        text="🎰 럭키 777 슬롯 머신",
+        text="🎰 럭키 77 슬롯 머신",
         font=("Arial", 22, "bold"),
         fg="#E91E63",
     ).pack(pady=10)
@@ -806,17 +805,19 @@ class RealCardGamePlatform:
     reel_frame = tk.Frame(self.root, bg="#222", bd=5, relief="ridge")
     reel_frame.pack(pady=20)
 
-    self.slot_symbols = ["🍒", "🍋", "🍊", "🍇", "🔔", "💎", "7️⃣"]
+    # 7 이모지 대신 일반 문자 '7' 적용하여 깨짐 방지
+    self.slot_symbols = ["🍒", "🍋", "🍊", "🍇", "🔔", "💎", "7"]
     self.reel_labels = []
 
     for _ in range(3):
       lbl = tk.Label(
           reel_frame,
           text="🎰",
-          font=("Arial", 45),
+          font=("Arial", 40, "bold"),
           width=3,
           height=2,
           bg="white",
+          fg="#333",
           relief="sunken",
       )
       lbl.pack(side="left", padx=10, pady=10)
@@ -873,13 +874,13 @@ class RealCardGamePlatform:
     r2 = random.choice(self.slot_symbols)
     r3 = random.choice(self.slot_symbols)
 
-    self.reel_labels[0].config(text=r1)
-    self.reel_labels[1].config(text=r2)
-    self.reel_labels[2].config(text=r3)
+    self.reel_labels[0].config(text=r1, fg="red" if r1 == "7" else "#333")
+    self.reel_labels[1].config(text=r2, fg="red" if r2 == "7" else "#333")
+    self.reel_labels[2].config(text=r3, fg="red" if r3 == "7" else "#333")
 
-    # 당첨 판정 및 배율 보상
+    # 당첨 판정 및 배율 보상 (7이 3개면 잭팟)
     reward = 0
-    if r1 == "7️⃣" and r2 == "7️⃣" and r3 == "7️⃣":
+    if r1 == "7" and r2 == "7" and r3 == "7":
       reward = 25000  # 잭팟 (50배)
       msg = "🔥 대박! 777 잭팟 당첨!! (+25,000 칩)"
     elif r1 == r2 == r3:
