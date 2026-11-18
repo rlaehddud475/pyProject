@@ -488,16 +488,31 @@ class RealCardGamePlatform:
           text=f"보유 칩: 🪙 {int(self.current_user['chips']):,} 칩"
       )
 
+    # 게임 종료 후 하단 버튼 영역 (다시하기 + 로비로)
+    end_btn_frame = tk.Frame(self.sp_btn_frame)
+    end_btn_frame.pack()
+
     tk.Button(
-        self.sp_btn_frame,
-        text="게임 선택 로비로",
+        end_btn_frame,
+        text="🔄 다시하기",
+        font=("Arial", 12, "bold"),
+        bg="#4CAF50",
+        fg="white",
+        width=14,
+        height=2,
+        command=self.start_seven_poker,
+    ).pack(side="left", padx=5)
+
+    tk.Button(
+        end_btn_frame,
+        text="🏠 게임 선택 로비",
         font=("Arial", 12, "bold"),
         bg="#2196F3",
         fg="white",
-        width=20,
+        width=14,
         height=2,
         command=self.create_game_select_lobby,
-    ).pack()
+    ).pack(side="left", padx=5)
 
   def seven_poker_fold(self):
     messagebox.showinfo("패배", "포기(Fold)를 선언했습니다.")
@@ -753,23 +768,38 @@ class RealCardGamePlatform:
           text=f"보유 칩: 🪙 {int(self.current_user['chips']):,} 칩"
       )
 
+    # 게임 종료 후 하단 버튼 영역 (다시하기 + 로비로)
+    end_btn_frame = tk.Frame(self.holdem_btn_frame)
+    end_btn_frame.pack()
+
     tk.Button(
-        self.holdem_btn_frame,
-        text="게임 선택 로비로",
+        end_btn_frame,
+        text="🔄 다시하기",
+        font=("Arial", 12, "bold"),
+        bg="#4CAF50",
+        fg="white",
+        width=14,
+        height=2,
+        command=self.start_holdem_game,
+    ).pack(side="left", padx=5)
+
+    tk.Button(
+        end_btn_frame,
+        text="🏠 게임 선택 로비",
         font=("Arial", 12, "bold"),
         bg="#2196F3",
         fg="white",
-        width=20,
+        width=14,
         height=2,
         command=self.create_game_select_lobby,
-    ).pack()
+    ).pack(side="left", padx=5)
 
   def holdem_fold(self):
     messagebox.showinfo("패배", "포기(Fold)를 선언했습니다.")
     database.update_record(self.current_user["username"], False, -1000)
     self.create_game_select_lobby()
 
-  # ==================== [6] 슬롯 머신 모드 (심볼 7 수정 완료) ====================
+  # ==================== [6] 슬롯 머신 모드 ====================
   def start_slot_machine(self):
     self.sync_user_data()
     if int(self.current_user["chips"]) < 500:
@@ -782,7 +812,6 @@ class RealCardGamePlatform:
     self.clear_window()
     self.root.geometry("800x600")
 
-    # 상단 내 잔액 표시
     top_frame = tk.Frame(self.root)
     top_frame.pack(pady=15)
 
@@ -801,11 +830,9 @@ class RealCardGamePlatform:
         fg="#E91E63",
     ).pack(pady=10)
 
-    # 슬롯머신 릴 화면 (3개 칸)
     reel_frame = tk.Frame(self.root, bg="#222", bd=5, relief="ridge")
     reel_frame.pack(pady=20)
 
-    # 7 이모지 대신 일반 문자 '7' 적용하여 깨짐 방지
     self.slot_symbols = ["🍒", "🍋", "🍊", "🍇", "🔔", "💎", "7"]
     self.reel_labels = []
 
@@ -823,7 +850,6 @@ class RealCardGamePlatform:
       lbl.pack(side="left", padx=10, pady=10)
       self.reel_labels.append(lbl)
 
-    # 결과 안내 메시지
     self.slot_status_lbl = tk.Label(
         self.root,
         text="배팅 금액: 500 칩 | [SPIN] 버튼을 눌러 돌리세요!",
@@ -832,7 +858,6 @@ class RealCardGamePlatform:
     )
     self.slot_status_lbl.pack(pady=15)
 
-    # 조작 버튼
     btn_frame = tk.Frame(self.root)
     btn_frame.pack(pady=15)
 
@@ -866,10 +891,8 @@ class RealCardGamePlatform:
       messagebox.showwarning("경고", "보유 칩이 부족합니다!")
       return
 
-    # 베팅금 차감
     database.update_record(self.current_user["username"], False, -bet_cost)
 
-    # 릴 3개 무작위 추첨
     r1 = random.choice(self.slot_symbols)
     r2 = random.choice(self.slot_symbols)
     r3 = random.choice(self.slot_symbols)
@@ -878,16 +901,15 @@ class RealCardGamePlatform:
     self.reel_labels[1].config(text=r2, fg="red" if r2 == "7" else "#333")
     self.reel_labels[2].config(text=r3, fg="red" if r3 == "7" else "#333")
 
-    # 당첨 판정 및 배율 보상 (7이 3개면 잭팟)
     reward = 0
     if r1 == "7" and r2 == "7" and r3 == "7":
-      reward = 25000  # 잭팟 (50배)
+      reward = 25000
       msg = "🔥 대박! 777 잭팟 당첨!! (+25,000 칩)"
     elif r1 == r2 == r3:
-      reward = 5000  # 트리플 (10배)
+      reward = 5000
       msg = f"🎉 {r1} 트리플 당첨!! (+5,000 칩)"
     elif r1 == r2 or r2 == r3 or r1 == r3:
-      reward = 1000  # 더블 (2배)
+      reward = 1000
       msg = "✨ 투 림(더블) 당첨! (+1,000 칩)"
     else:
       msg = "😢 아쉽네요... 꽝!"
