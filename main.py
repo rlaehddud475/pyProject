@@ -9,12 +9,13 @@ class RealCardGamePlatform:
 
   def __init__(self, root):
     self.root = root
-    self.root.title("Python 기말과제 - 카드 게임 & 슬롯머신 통합 플랫폼")
+    self.root.title(
+        "Python 기말과제 - 카드게임 및 슬롯머신 통합 플랫폼"
+    )
     self.root.geometry("900x720")
     self.root.resizable(False, False)
 
     self.current_user = None
-    self.is_spinning = False
     self.create_login_screen()
 
   def clear_window(self):
@@ -75,7 +76,9 @@ class RealCardGamePlatform:
       messagebox.showinfo("성공", f"{user['nickname']}님 환영합니다!")
       self.create_game_select_lobby()
     else:
-      messagebox.showerror("오류", "아이디 또는 비밀번호가 일치하지 않습니다.")
+      messagebox.showerror(
+          "오류", "아이디 또는 비밀번호가 일치하지 않습니다."
+      )
 
   # ==================== [2] 회원가입 화면 ====================
   def create_register_screen(self):
@@ -139,7 +142,6 @@ class RealCardGamePlatform:
   # ==================== [3] 게임 선택 로비 ====================
   def create_game_select_lobby(self):
     self.clear_window()
-    self.root.geometry("900x720")
 
     users = database.load_users()
     for u in users:
@@ -249,6 +251,7 @@ class RealCardGamePlatform:
 
     users = database.load_users()
 
+    # 승률 계산 정렬 로직: (승률 내림차순, 승수 내림차순, 칩 보유량 내림차순)
     ranked_users = []
     for u in users:
       w = int(u.get("wins", 0))
@@ -263,13 +266,13 @@ class RealCardGamePlatform:
           "chips": int(u.get("chips", 0)),
       })
 
-    ranked_users.sort(
-        key=lambda x: (x["win_rate"], x["wins"], x["chips"]), reverse=True
-    )
+    ranked_users.sort(key=lambda x: (x["win_rate"], x["wins"], x["chips"]), reverse=True)
 
+    # 랭킹 테이블 프레임
     table_frame = tk.Frame(self.root, bg="#fff", bd=2, relief="groove")
     table_frame.pack(pady=10, padx=40, fill="both", expand=True)
 
+    # 헤더
     header_frame = tk.Frame(table_frame, bg="#9C27B0", pady=8)
     header_frame.pack(fill="x")
     tk.Label(
@@ -313,6 +316,7 @@ class RealCardGamePlatform:
         width=15,
     ).pack(side="left")
 
+    # 리스트 표시 (최대 10명)
     for idx, user in enumerate(ranked_users[:10]):
       row_bg = "#fce4ec" if idx == 0 else ("#f3e5f5" if idx < 3 else "white")
       row_frame = tk.Frame(table_frame, bg=row_bg, pady=6)
@@ -378,7 +382,9 @@ class RealCardGamePlatform:
   def start_seven_poker(self):
     self.sync_user_data()
     if int(self.current_user["chips"]) < 1000:
-      messagebox.showwarning("파산", "칩이 부족합니다! (기본 10,000칩 충전)")
+      messagebox.showwarning(
+          "파산", "칩이 부족합니다! (기본 10,000칩 충전)"
+      )
       database.update_record(self.current_user["username"], False, 10000)
       self.sync_user_data()
 
@@ -699,7 +705,9 @@ class RealCardGamePlatform:
   def start_holdem_game(self):
     self.sync_user_data()
     if int(self.current_user["chips"]) < 1000:
-      messagebox.showwarning("파산", "칩이 부족합니다! (기본 10,000칩 충전)")
+      messagebox.showwarning(
+          "파산", "칩이 부족합니다! (기본 10,000칩 충전)"
+      )
       database.update_record(self.current_user["username"], False, 10000)
       self.sync_user_data()
 
@@ -730,11 +738,11 @@ class RealCardGamePlatform:
     self.holdem_player_hole = [self.deck.pop(), self.deck.pop()]
     self.holdem_ai_hole = [self.deck.pop(), self.deck.pop()]
 
-    self.deck.pop()
+    self.deck.pop()  # Burn card
     self.holdem_community = [self.deck.pop(), self.deck.pop(), self.deck.pop()]
-    self.deck.pop()
+    self.deck.pop()  # Burn card
     self.holdem_community.append(self.deck.pop())
-    self.deck.pop()
+    self.deck.pop()  # Burn card
     self.holdem_community.append(self.deck.pop())
 
     self.pot = 2000
@@ -1005,17 +1013,18 @@ class RealCardGamePlatform:
         command=self.create_game_select_lobby,
     ).pack(side="left", padx=5)
 
-  # ==================== [6] 슬롯 머신 모드 (회전 애니메이션 적용) ====================
+  # ==================== [6] 슬롯 머신 모드 ====================
   def start_slot_machine(self):
     self.sync_user_data()
     if int(self.current_user["chips"]) < 500:
-      messagebox.showwarning("파산", "칩이 부족합니다! (기본 10,000칩 충전)")
+      messagebox.showwarning(
+          "파산", "칩이 부족합니다! (기본 10,000칩 충전)"
+      )
       database.update_record(self.current_user["username"], False, 10000)
       self.sync_user_data()
 
     self.clear_window()
     self.root.geometry("800x600")
-    self.is_spinning = False
 
     top_frame = tk.Frame(self.root)
     top_frame.pack(pady=15)
@@ -1078,7 +1087,7 @@ class RealCardGamePlatform:
     )
     self.spin_btn.pack(side="left", padx=10)
 
-    self.slot_lobby_btn = tk.Button(
+    tk.Button(
         btn_frame,
         text="로비로 돌아가기",
         font=("Arial", 12, "bold"),
@@ -1087,66 +1096,26 @@ class RealCardGamePlatform:
         width=15,
         height=2,
         command=self.create_game_select_lobby,
-    )
-    self.slot_lobby_btn.pack(side="left", padx=10)
+    ).pack(side="left", padx=10)
 
   def spin_slot_machine(self):
-    if self.is_spinning:
-      return
-
     bet_cost = 500
     self.sync_user_data()
     if int(self.current_user["chips"]) < bet_cost:
       messagebox.showwarning("경고", "보유 칩이 부족합니다!")
       return
 
-    self.is_spinning = True
-    self.spin_btn.config(state="disabled", text="회전 중...")
-    self.slot_lobby_btn.config(state="disabled")
-    self.slot_status_lbl.config(text="🎲 릴이 돌아갑니다... 행운을 빕니다!", fg="#E91E63")
-
     database.update_record(self.current_user["username"], False, -bet_cost)
-    self.sync_user_data()
-    self.slot_chips_lbl.config(
-        text=f"보유 칩: 🪙 {int(self.current_user['chips']):,} 칩"
-    )
 
-    final_results = [
-        random.choice(self.slot_symbols),
-        random.choice(self.slot_symbols),
-        random.choice(self.slot_symbols),
-    ]
+    r1 = random.choice(self.slot_symbols)
+    r2 = random.choice(self.slot_symbols)
+    r3 = random.choice(self.slot_symbols)
 
-    for lbl in self.reel_labels:
-      lbl.config(bg="#fffde7")
+    self.reel_labels[0].config(text=r1, fg="red" if r1 == "7" else "#333")
+    self.reel_labels[1].config(text=r2, fg="red" if r2 == "7" else "#333")
+    self.reel_labels[2].config(text=r3, fg="red" if r3 == "7" else "#333")
 
-    self.animate_reels(0, final_results)
-
-  def animate_reels(self, step, final_results):
-    stop_steps = [12, 20, 28]
-
-    for i in range(3):
-      if step < stop_steps[i]:
-        temp_sym = random.choice(self.slot_symbols)
-        self.reel_labels[i].config(
-            text=temp_sym, fg="red" if temp_sym == "7" else "#555"
-        )
-      elif step == stop_steps[i]:
-        res_sym = final_results[i]
-        self.reel_labels[i].config(
-            text=res_sym, fg="red" if res_sym == "7" else "#333", bg="white"
-        )
-
-    if step < stop_steps[2]:
-      delay = 45 if step < 15 else (65 if step < 23 else 90)
-      self.root.after(delay, lambda: self.animate_reels(step + 1, final_results))
-    else:
-      self.finish_slot_spin(final_results)
-
-  def finish_slot_spin(self, results):
-    r1, r2, r3 = results
     reward = 0
-
     if r1 == "7" and r2 == "7" and r3 == "7":
       reward = 25000
       msg = "🔥 대박! 777 잭팟 당첨!! (+25,000 칩)"
@@ -1162,8 +1131,6 @@ class RealCardGamePlatform:
     if reward > 0:
       database.update_record(self.current_user["username"], True, reward)
       self.slot_status_lbl.config(text=msg, fg="blue")
-      for lbl in self.reel_labels:
-        lbl.config(bg="#e8f5e9")
     else:
       self.slot_status_lbl.config(text=msg, fg="red")
 
@@ -1171,10 +1138,6 @@ class RealCardGamePlatform:
     self.slot_chips_lbl.config(
         text=f"보유 칩: 🪙 {int(self.current_user['chips']):,} 칩"
     )
-
-    self.is_spinning = False
-    self.spin_btn.config(state="normal", text="🎰 SPIN! (500칩 베팅)")
-    self.slot_lobby_btn.config(state="normal")
 
   # ==================== [7] 7장 중 가장 좋은 5장을 뽑아 족보를 판정하는 알고리즘 ====================
   def evaluate_best_5_of_7(self, cards_7):
@@ -1261,6 +1224,7 @@ class RealCardGamePlatform:
       tri_val = sorted_counts[0][0]
       pair_val = sorted_counts[1][0]
       t_name = rev_val_map[tri_val]
+      p_name = rev_val_map[pair_val]
       return (900 + tri_val, f"{t_name} 풀하우스", (tri_val, pair_val))
 
     if is_flush:
