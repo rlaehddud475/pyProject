@@ -1,14 +1,8 @@
 import itertools
 import random
-import sys
 import tkinter as tk
 from tkinter import messagebox
 import database
-
-try:
-  import winsound
-except ImportError:
-  winsound = None
 
 
 class RealCardGamePlatform:
@@ -22,42 +16,7 @@ class RealCardGamePlatform:
     self.current_user = None
     self.is_spinning = False
     self.is_card_animating = False
-    self.sound_enabled = sys.platform.startswith("win") and winsound is not None
     self.create_login_screen()
-
-  def play_tone(self, freq, duration_ms):
-    if not self.sound_enabled:
-      return
-    try:
-      winsound.Beep(int(freq), int(duration_ms))
-    except Exception:
-      pass
-
-  def play_card_flip_sound(self):
-    self.play_tone(680, 25)
-
-  def play_reel_stop_sound(self, reel_index):
-    freqs = [520, 620, 760]
-    self.play_tone(freqs[reel_index % len(freqs)], 35)
-
-  def play_win_sound(self, tier="normal"):
-    if not self.sound_enabled:
-      return
-    if tier == "jackpot":
-      for f, d in [(660, 70), (880, 70), (1046, 90), (1318, 150)]:
-        self.play_tone(f, d)
-    elif tier == "big":
-      for f, d in [(587, 70), (784, 70), (988, 120)]:
-        self.play_tone(f, d)
-    else:
-      for f, d in [(523, 60), (659, 90)]:
-        self.play_tone(f, d)
-
-  def play_lose_sound(self):
-    if not self.sound_enabled:
-      return
-    for f, d in [(392, 80), (311, 120)]:
-      self.play_tone(f, d)
 
   def clear_window(self):
     for widget in self.root.winfo_children():
@@ -93,7 +52,6 @@ class RealCardGamePlatform:
       )
     else:
       lbl.config(text=final_text, bg=final_bg, fg=final_fg)
-      self.play_card_flip_sound()
       if on_complete:
         on_complete()
 
@@ -747,12 +705,10 @@ class RealCardGamePlatform:
         result_text = f"🎉 플레이어 승리! (나: {p_desc} vs AI: {ai_desc})"
         is_win = True
         chip_change = self.pot // 2
-        self.play_win_sound("normal")
       elif p_score < ai_score:
         result_text = f"😢 컴퓨터 승리 (나: {p_desc} vs AI: {ai_desc})"
         is_win = False
         chip_change = -(self.pot // 2)
-        self.play_lose_sound()
       else:
         result_text = f"🤝 무승부! (족보 동일: {p_desc})"
         is_win = None
@@ -806,7 +762,6 @@ class RealCardGamePlatform:
     if self.is_card_animating:
       return
 
-    self.play_lose_sound()
     database.update_record(self.current_user["username"], False, -1000)
     self.sync_user_data()
     self.my_chips_lbl.config(
@@ -1109,12 +1064,10 @@ class RealCardGamePlatform:
         result_text = f"🎉 텍사스 홀덤 승리! (나: {p_desc} vs AI: {ai_desc})"
         is_win = True
         chip_change = self.pot // 2
-        self.play_win_sound("normal")
       elif p_score < ai_score:
         result_text = f"😢 컴퓨터 승리 (나: {p_desc} vs AI: {ai_desc})"
         is_win = False
         chip_change = -(self.pot // 2)
-        self.play_lose_sound()
       else:
         result_text = f"🤝 무승부! (족보 동일: {p_desc})"
         is_win = None
@@ -1169,7 +1122,6 @@ class RealCardGamePlatform:
     if self.is_card_animating:
       return
 
-    self.play_lose_sound()
     database.update_record(self.current_user["username"], False, -1000)
     self.sync_user_data()
     self.holdem_my_chips_lbl.config(
@@ -1207,7 +1159,7 @@ class RealCardGamePlatform:
         command=self.create_game_select_lobby,
     ).pack(side="left", padx=5)
 
-  # ==================== [6] 슬롯 머신 모드 (회전 애니메이션 + 사운드 적용) ====================
+  # ==================== [6] 슬롯 머신 모드 (회전 애니메이션 적용) ====================
   def start_slot_machine(self):
     self.sync_user_data()
     if int(self.current_user["chips"]) < 500:
@@ -1308,7 +1260,6 @@ class RealCardGamePlatform:
     self.slot_status_lbl.config(
         text="🎲 릴이 돌아갑니다... 행운을 빕니다!", fg="#E91E63"
     )
-    self.play_tone(480, 35)
 
     database.update_record(self.current_user["username"], False, -bet_cost)
     self.sync_user_data()
@@ -1341,7 +1292,6 @@ class RealCardGamePlatform:
         self.reel_labels[i].config(
             text=res_sym, fg="red" if res_sym == "7" else "#333", bg="white"
         )
-        self.play_reel_stop_sound(i)
 
     if step < stop_steps[2]:
       delay = 45 if step < 15 else (65 if step < 23 else 90)
@@ -1358,28 +1308,22 @@ class RealCardGamePlatform:
     if r1 == "7" and r2 == "7" and r3 == "7":
       reward = 25000
       msg = "🔥 대박! 777 잭팟 당첨!! (+25,000 칩)"
-      tier = "jackpot"
     elif r1 == r2 == r3:
       reward = 5000
       msg = f"🎉 {r1} 트리플 당첨!! (+5,000 칩)"
-      tier = "big"
     elif r1 == r2 or r2 == r3 or r1 == r3:
       reward = 1000
       msg = "✨ 투 림(더블) 당첨! (+1,000 칩)"
-      tier = "normal"
     else:
       msg = "😢 아쉽네요... 꽝!"
-      tier = None
 
     if reward > 0:
       database.update_record(self.current_user["username"], True, reward)
       self.slot_status_lbl.config(text=msg, fg="blue")
       for lbl in self.reel_labels:
         lbl.config(bg="#e8f5e9")
-      self.play_win_sound(tier)
     else:
       self.slot_status_lbl.config(text=msg, fg="red")
-      self.play_lose_sound()
 
     self.sync_user_data()
     self.slot_chips_lbl.config(
