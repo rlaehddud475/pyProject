@@ -16,6 +16,7 @@ def build_exe():
     print(f"\n[오류 발생]: {e}")
 
 
+
 if __name__ == "__main__":
   build_exe()
   input("\n종료하려면 엔터 키를 누르세요...")
