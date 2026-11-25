@@ -15,11 +15,63 @@ class RealCardGamePlatform:
 
     self.current_user = None
     self.is_spinning = False
+    self.is_card_animating = False
     self.create_login_screen()
 
   def clear_window(self):
     for widget in self.root.winfo_children():
       widget.destroy()
+
+  def flip_card_label(
+      self,
+      lbl,
+      final_text,
+      final_bg="white",
+      final_fg=None,
+      step=0,
+      on_complete=None,
+  ):
+    if final_fg is None:
+      final_fg = "red" if ("♥" in final_text or "◆" in final_text) else "#111"
+
+    if step == 0:
+      lbl.config(text="|", bg="#dbeafe", fg="#334155")
+      self.root.after(
+          55,
+          lambda: self.flip_card_label(
+              lbl, final_text, final_bg, final_fg, 1, on_complete
+          ),
+      )
+    elif step == 1:
+      lbl.config(text="🂠", bg="#e2e8f0", fg="#475569")
+      self.root.after(
+          55,
+          lambda: self.flip_card_label(
+              lbl, final_text, final_bg, final_fg, 2, on_complete
+          ),
+      )
+    else:
+      lbl.config(text=final_text, bg=final_bg, fg=final_fg)
+      if on_complete:
+        on_complete()
+
+  def flip_cards_sequence(self, items, index=0, on_all_done=None):
+    if index >= len(items):
+      if on_all_done:
+        on_all_done()
+      return
+
+    lbl, text, bg, fg = items[index]
+    self.flip_card_label(
+        lbl,
+        text,
+        bg,
+        fg,
+        step=0,
+        on_complete=lambda: self.flip_cards_sequence(
+            items, index + 1, on_all_done
+        ),
+    )
 
   # ==================== [1] 로그인 화면 ====================
   def create_login_screen(self):
@@ -384,6 +436,7 @@ class RealCardGamePlatform:
 
     self.clear_window()
     self.root.geometry("900x720")
+    self.is_card_animating = False
 
     self.deck = [
         f"{suit}{val}"
@@ -491,8 +544,6 @@ class RealCardGamePlatform:
       lbl.pack(side="left", padx=3)
       self.sp_player_lbls.append(lbl)
 
-    self.update_seven_poker_cards_ui()
-
     self.sp_btn_frame = tk.Frame(self.root)
     self.sp_btn_frame.pack(pady=15)
 
@@ -520,46 +571,90 @@ class RealCardGamePlatform:
     )
     self.sp_fold_btn.pack(side="left", padx=10)
 
-  def update_seven_poker_cards_ui(self):
+    self.apply_seven_poker_cards_ui(animate=True)
+
+  def get_seven_poker_slot_specs(self, idx):
     max_dealt_idx = self.sp_step + 1
 
-    for i in range(7):
-      if i <= max_dealt_idx:
-        if i == 6 and self.sp_step < 6:
-          p_text = "🂠 (히든)"
-          p_bg = "#ffecb3"
-        elif i == 2:
-          p_text = f"{self.sp_player_cards[i]}\n(오픈)"
-          p_bg = "#e3f2fd"
-        else:
-          p_text = self.sp_player_cards[i]
-          p_bg = "white"
+    if idx <= max_dealt_idx:
+      if idx == 6 and self.sp_step < 6:
+        p_text, p_bg, p_fg = "🂠 (히든)", "#ffecb3", "#333"
+      elif idx == 2:
+        card = self.sp_player_cards[idx]
+        p_text, p_bg = f"{card}\n(오픈)", "#e3f2fd"
+        p_fg = "red" if ("♥" in card or "◆" in card) else "#111"
       else:
-        p_text = "🂠"
-        p_bg = "#e0e0e0"
+        card = self.sp_player_cards[idx]
+        p_text, p_bg = card, "white"
+        p_fg = "red" if ("♥" in card or "◆" in card) else "#111"
+    else:
+      p_text, p_bg, p_fg = "🂠", "#e0e0e0", "#555"
 
-      self.sp_player_lbls[i].config(text=p_text, bg=p_bg)
-
-      if i <= max_dealt_idx:
-        if i in [2, 3, 4, 5] or self.sp_step == 6:
-          ai_text = (
-              f"{self.sp_ai_cards[i]}\n(오픈)"
-              if (i == 2 and self.sp_step < 6)
-              else self.sp_ai_cards[i]
-          )
-          ai_bg = "#e3f2fd" if (i == 2 and self.sp_step < 6) else "white"
+    if idx <= max_dealt_idx:
+      if idx in [2, 3, 4, 5] or self.sp_step == 6:
+        card = self.sp_ai_cards[idx]
+        if idx == 2 and self.sp_step < 6:
+          ai_text, ai_bg = f"{card}\n(오픈)", "#e3f2fd"
         else:
-          ai_text = "🂠 (비공개)"
-          ai_bg = "#ccc"
+          ai_text, ai_bg = card, "white"
+        ai_fg = "red" if ("♥" in card or "◆" in card) else "#111"
       else:
-        ai_text = "🂠"
-        ai_bg = "#e0e0e0"
+        ai_text, ai_bg, ai_fg = "🂠 (비공개)", "#ccc", "#333"
+    else:
+      ai_text, ai_bg, ai_fg = "🂠", "#e0e0e0", "#555"
 
-      self.sp_ai_lbls[i].config(text=ai_text, bg=ai_bg)
+    return (p_text, p_bg, p_fg), (ai_text, ai_bg, ai_fg)
+
+  def apply_seven_poker_cards_ui(
+      self, animate=False, target_indices=None, on_done=None
+  ):
+    if target_indices is None:
+      target_indices = range(7)
+
+    anim_items = []
+    for i in target_indices:
+      (p_text, p_bg, p_fg), (ai_text, ai_bg, ai_fg) = (
+          self.get_seven_poker_slot_specs(i)
+      )
+      if animate:
+        if p_text != "🂠" and "비공개" not in p_text:
+          anim_items.append((self.sp_player_lbls[i], p_text, p_bg, p_fg))
+        else:
+          self.sp_player_lbls[i].config(text=p_text, bg=p_bg, fg=p_fg)
+
+        if ai_text != "🂠" and "비공개" not in ai_text:
+          anim_items.append((self.sp_ai_lbls[i], ai_text, ai_bg, ai_fg))
+        else:
+          self.sp_ai_lbls[i].config(text=ai_text, bg=ai_bg, fg=ai_fg)
+      else:
+        self.sp_player_lbls[i].config(text=p_text, bg=p_bg, fg=p_fg)
+        self.sp_ai_lbls[i].config(text=ai_text, bg=ai_bg, fg=ai_fg)
+
+    if animate and anim_items:
+      self.is_card_animating = True
+      self.sp_action_btn.config(state="disabled")
+      self.sp_fold_btn.config(state="disabled")
+
+      def finish_anim():
+        self.is_card_animating = False
+        if self.sp_action_btn.winfo_exists():
+          self.sp_action_btn.config(state="normal")
+        if self.sp_fold_btn.winfo_exists():
+          self.sp_fold_btn.config(state="normal")
+        if on_done:
+          on_done()
+
+      self.flip_cards_sequence(anim_items, on_all_done=finish_anim)
+    elif on_done:
+      on_done()
 
   def seven_poker_next(self):
+    if self.is_card_animating:
+      return
+
     self.sp_step += 1
     self.pot += 500
+    dealt_idx = self.sp_step + 1
 
     if self.sp_step == 2:
       self.sp_status_lbl.config(
@@ -598,65 +693,75 @@ class RealCardGamePlatform:
       self.perform_seven_poker_showdown()
       return
 
-    self.update_seven_poker_cards_ui()
+    self.apply_seven_poker_cards_ui(animate=True, target_indices=[dealt_idx])
     self.sp_pot_lbl.config(text=f"현재 팟(Pot): {self.pot:,} 칩")
 
   def perform_seven_poker_showdown(self):
-    self.update_seven_poker_cards_ui()
+    def reveal_done():
+      p_score, p_desc = self.evaluate_best_5_of_7(self.sp_player_cards)
+      ai_score, ai_desc = self.evaluate_best_5_of_7(self.sp_ai_cards)
 
-    p_score, p_desc = self.evaluate_best_5_of_7(self.sp_player_cards)
-    ai_score, ai_desc = self.evaluate_best_5_of_7(self.sp_ai_cards)
+      if p_score > ai_score:
+        result_text = f"🎉 플레이어 승리! (나: {p_desc} vs AI: {ai_desc})"
+        is_win = True
+        chip_change = self.pot // 2
+      elif p_score < ai_score:
+        result_text = f"😢 컴퓨터 승리 (나: {p_desc} vs AI: {ai_desc})"
+        is_win = False
+        chip_change = -(self.pot // 2)
+      else:
+        result_text = f"🤝 무승부! (족보 동일: {p_desc})"
+        is_win = None
+        chip_change = 0
 
-    if p_score > ai_score:
-      result_text = f"🎉 플레이어 승리! (나: {p_desc} vs AI: {ai_desc})"
-      is_win = True
-      chip_change = self.pot // 2
-    elif p_score < ai_score:
-      result_text = f"😢 컴퓨터 승리 (나: {p_desc} vs AI: {ai_desc})"
-      is_win = False
-      chip_change = -(self.pot // 2)
-    else:
-      result_text = f"🤝 무승부! (족보 동일: {p_desc})"
-      is_win = None
-      chip_change = 0
-
-    self.sp_status_lbl.config(text=result_text, fg="blue" if is_win else "red")
-    self.sp_action_btn.pack_forget()
-    self.sp_fold_btn.pack_forget()
-
-    if is_win is not None:
-      database.update_record(self.current_user["username"], is_win, chip_change)
-      self.sync_user_data()
-      self.my_chips_lbl.config(
-          text=f"보유 칩: 🪙 {int(self.current_user['chips']):,} 칩"
+      self.sp_status_lbl.config(
+          text=result_text, fg="blue" if is_win else "red"
       )
+      self.sp_action_btn.pack_forget()
+      self.sp_fold_btn.pack_forget()
 
-    end_btn_frame = tk.Frame(self.sp_btn_frame)
-    end_btn_frame.pack()
+      if is_win is not None:
+        database.update_record(
+            self.current_user["username"], is_win, chip_change
+        )
+        self.sync_user_data()
+        self.my_chips_lbl.config(
+            text=f"보유 칩: 🪙 {int(self.current_user['chips']):,} 칩"
+        )
 
-    tk.Button(
-        end_btn_frame,
-        text="🔄 다시하기",
-        font=("Arial", 12, "bold"),
-        bg="#4CAF50",
-        fg="white",
-        width=14,
-        height=2,
-        command=self.start_seven_poker,
-    ).pack(side="left", padx=5)
+      end_btn_frame = tk.Frame(self.sp_btn_frame)
+      end_btn_frame.pack()
 
-    tk.Button(
-        end_btn_frame,
-        text="🏠 게임 선택 로비",
-        font=("Arial", 12, "bold"),
-        bg="#2196F3",
-        fg="white",
-        width=14,
-        height=2,
-        command=self.create_game_select_lobby,
-    ).pack(side="left", padx=5)
+      tk.Button(
+          end_btn_frame,
+          text="🔄 다시하기",
+          font=("Arial", 12, "bold"),
+          bg="#4CAF50",
+          fg="white",
+          width=14,
+          height=2,
+          command=self.start_seven_poker,
+      ).pack(side="left", padx=5)
+
+      tk.Button(
+          end_btn_frame,
+          text="🏠 게임 선택 로비",
+          font=("Arial", 12, "bold"),
+          bg="#2196F3",
+          fg="white",
+          width=14,
+          height=2,
+          command=self.create_game_select_lobby,
+      ).pack(side="left", padx=5)
+
+    self.apply_seven_poker_cards_ui(
+        animate=True, target_indices=[0, 1, 2, 6], on_done=reveal_done
+    )
 
   def seven_poker_fold(self):
+    if self.is_card_animating:
+      return
+
     database.update_record(self.current_user["username"], False, -1000)
     self.sync_user_data()
     self.my_chips_lbl.config(
@@ -705,6 +810,7 @@ class RealCardGamePlatform:
 
     self.clear_window()
     self.root.geometry("900x720")
+    self.is_card_animating = False
 
     self.deck = [
         f"{suit}{val}"
@@ -818,16 +924,19 @@ class RealCardGamePlatform:
         pady=5,
     )
     player_frame.pack(pady=5, fill="x", padx=20)
-    for card in self.holdem_player_hole:
-      tk.Label(
+    self.holdem_player_lbls = []
+    for _ in self.holdem_player_hole:
+      lbl = tk.Label(
           player_frame,
-          text=card,
+          text="🂠",
           font=("Arial", 20, "bold"),
           width=4,
           height=2,
           bg="white",
           relief="solid",
-      ).pack(side="left", padx=5)
+      )
+      lbl.pack(side="left", padx=5)
+      self.holdem_player_lbls.append(lbl)
 
     self.holdem_btn_frame = tk.Frame(self.root)
     self.holdem_btn_frame.pack(pady=15)
@@ -856,20 +965,37 @@ class RealCardGamePlatform:
     )
     self.holdem_fold_btn.pack(side="left", padx=10)
 
+    hole_items = []
+    for lbl, card in zip(self.holdem_player_lbls, self.holdem_player_hole):
+      fg = "red" if ("♥" in card or "◆" in card) else "#111"
+      hole_items.append((lbl, card, "white", fg))
+
+    self.is_card_animating = True
+    self.holdem_action_btn.config(state="disabled")
+    self.holdem_fold_btn.config(state="disabled")
+
+    def on_hole_done():
+      self.is_card_animating = False
+      if self.holdem_action_btn.winfo_exists():
+        self.holdem_action_btn.config(state="normal")
+      if self.holdem_fold_btn.winfo_exists():
+        self.holdem_fold_btn.config(state="normal")
+
+    self.flip_cards_sequence(hole_items, on_all_done=on_hole_done)
+
   def holdem_next_step(self):
+    if self.is_card_animating:
+      return
+
     self.holdem_stage += 1
     self.pot += 1000
 
+    items_to_flip = []
     if self.holdem_stage == 2:
-      self.holdem_comm_lbls[0].config(
-          text=self.holdem_community[0], bg="white"
-      )
-      self.holdem_comm_lbls[1].config(
-          text=self.holdem_community[1], bg="white"
-      )
-      self.holdem_comm_lbls[2].config(
-          text=self.holdem_community[2], bg="white"
-      )
+      for idx in [0, 1, 2]:
+        card = self.holdem_community[idx]
+        fg = "red" if ("♥" in card or "◆" in card) else "#111"
+        items_to_flip.append((self.holdem_comm_lbls[idx], card, "white", fg))
       self.holdem_status_lbl.config(
           text=(
               "[텍사스 홀덤 - ② 플랍] 공용 카드 3장이 공개되었습니다. 세 번째"
@@ -878,9 +1004,9 @@ class RealCardGamePlatform:
       )
       self.holdem_action_btn.config(text="콜 (③ 턴 카드 1장 추가)")
     elif self.holdem_stage == 3:
-      self.holdem_comm_lbls[3].config(
-          text=self.holdem_community[3], bg="white"
-      )
+      card = self.holdem_community[3]
+      fg = "red" if ("♥" in card or "◆" in card) else "#111"
+      items_to_flip.append((self.holdem_comm_lbls[3], card, "white", fg))
       self.holdem_status_lbl.config(
           text=(
               "[텍사스 홀덤 - ③ 턴] 공용 카드 4장이 되었습니다. 네 번째"
@@ -889,9 +1015,9 @@ class RealCardGamePlatform:
       )
       self.holdem_action_btn.config(text="콜 (④ 리버 카드 1장 추가)")
     elif self.holdem_stage == 4:
-      self.holdem_comm_lbls[4].config(
-          text=self.holdem_community[4], bg="white"
-      )
+      card = self.holdem_community[4]
+      fg = "red" if ("♥" in card or "◆" in card) else "#111"
+      items_to_flip.append((self.holdem_comm_lbls[4], card, "white", fg))
       self.holdem_status_lbl.config(
           text=(
               "[텍사스 홀덤 - ④ 리버] 마지막 공용 카드까지 5장이 모두"
@@ -906,68 +1032,96 @@ class RealCardGamePlatform:
 
     self.holdem_pot_lbl.config(text=f"현재 팟(Pot): {self.pot:,} 칩")
 
+    if items_to_flip:
+      self.is_card_animating = True
+      self.holdem_action_btn.config(state="disabled")
+      self.holdem_fold_btn.config(state="disabled")
+
+      def finish_flip():
+        self.is_card_animating = False
+        if self.holdem_action_btn.winfo_exists():
+          self.holdem_action_btn.config(state="normal")
+        if self.holdem_fold_btn.winfo_exists():
+          self.holdem_fold_btn.config(state="normal")
+
+      self.flip_cards_sequence(items_to_flip, on_all_done=finish_flip)
+
   def perform_holdem_showdown(self):
-    for i, card in enumerate(self.holdem_ai_hole):
-      self.holdem_ai_lbls[i].config(text=card, bg="white")
+    ai_items = []
+    for lbl, card in zip(self.holdem_ai_lbls, self.holdem_ai_hole):
+      fg = "red" if ("♥" in card or "◆" in card) else "#111"
+      ai_items.append((lbl, card, "white", fg))
 
-    p_cards = self.holdem_player_hole + self.holdem_community
-    ai_cards = self.holdem_ai_hole + self.holdem_community
+    def showdown_result():
+      self.is_card_animating = False
+      p_cards = self.holdem_player_hole + self.holdem_community
+      ai_cards = self.holdem_ai_hole + self.holdem_community
 
-    p_score, p_desc = self.evaluate_best_5_of_7(p_cards)
-    ai_score, ai_desc = self.evaluate_best_5_of_7(ai_cards)
+      p_score, p_desc = self.evaluate_best_5_of_7(p_cards)
+      ai_score, ai_desc = self.evaluate_best_5_of_7(ai_cards)
 
-    if p_score > ai_score:
-      result_text = f"🎉 텍사스 홀덤 승리! (나: {p_desc} vs AI: {ai_desc})"
-      is_win = True
-      chip_change = self.pot // 2
-    elif p_score < ai_score:
-      result_text = f"😢 컴퓨터 승리 (나: {p_desc} vs AI: {ai_desc})"
-      is_win = False
-      chip_change = -(self.pot // 2)
-    else:
-      result_text = f"🤝 무승부! (족보 동일: {p_desc})"
-      is_win = None
-      chip_change = 0
+      if p_score > ai_score:
+        result_text = f"🎉 텍사스 홀덤 승리! (나: {p_desc} vs AI: {ai_desc})"
+        is_win = True
+        chip_change = self.pot // 2
+      elif p_score < ai_score:
+        result_text = f"😢 컴퓨터 승리 (나: {p_desc} vs AI: {ai_desc})"
+        is_win = False
+        chip_change = -(self.pot // 2)
+      else:
+        result_text = f"🤝 무승부! (족보 동일: {p_desc})"
+        is_win = None
+        chip_change = 0
 
-    self.holdem_status_lbl.config(
-        text=result_text, fg="blue" if is_win else "red"
-    )
-    self.holdem_action_btn.pack_forget()
-    self.holdem_fold_btn.pack_forget()
-
-    if is_win is not None:
-      database.update_record(self.current_user["username"], is_win, chip_change)
-      self.sync_user_data()
-      self.holdem_my_chips_lbl.config(
-          text=f"보유 칩: 🪙 {int(self.current_user['chips']):,} 칩"
+      self.holdem_status_lbl.config(
+          text=result_text, fg="blue" if is_win else "red"
       )
+      self.holdem_action_btn.pack_forget()
+      self.holdem_fold_btn.pack_forget()
 
-    end_btn_frame = tk.Frame(self.holdem_btn_frame)
-    end_btn_frame.pack()
+      if is_win is not None:
+        database.update_record(
+            self.current_user["username"], is_win, chip_change
+        )
+        self.sync_user_data()
+        self.holdem_my_chips_lbl.config(
+            text=f"보유 칩: 🪙 {int(self.current_user['chips']):,} 칩"
+        )
 
-    tk.Button(
-        end_btn_frame,
-        text="🔄 다시하기",
-        font=("Arial", 12, "bold"),
-        bg="#4CAF50",
-        fg="white",
-        width=14,
-        height=2,
-        command=self.start_holdem_game,
-    ).pack(side="left", padx=5)
+      end_btn_frame = tk.Frame(self.holdem_btn_frame)
+      end_btn_frame.pack()
 
-    tk.Button(
-        end_btn_frame,
-        text="🏠 게임 선택 로비",
-        font=("Arial", 12, "bold"),
-        bg="#2196F3",
-        fg="white",
-        width=14,
-        height=2,
-        command=self.create_game_select_lobby,
-    ).pack(side="left", padx=5)
+      tk.Button(
+          end_btn_frame,
+          text="🔄 다시하기",
+          font=("Arial", 12, "bold"),
+          bg="#4CAF50",
+          fg="white",
+          width=14,
+          height=2,
+          command=self.start_holdem_game,
+      ).pack(side="left", padx=5)
+
+      tk.Button(
+          end_btn_frame,
+          text="🏠 게임 선택 로비",
+          font=("Arial", 12, "bold"),
+          bg="#2196F3",
+          fg="white",
+          width=14,
+          height=2,
+          command=self.create_game_select_lobby,
+      ).pack(side="left", padx=5)
+
+    self.is_card_animating = True
+    self.holdem_action_btn.config(state="disabled")
+    self.holdem_fold_btn.config(state="disabled")
+    self.flip_cards_sequence(ai_items, on_all_done=showdown_result)
 
   def holdem_fold(self):
+    if self.is_card_animating:
+      return
+
     database.update_record(self.current_user["username"], False, -1000)
     self.sync_user_data()
     self.holdem_my_chips_lbl.config(
@@ -1103,7 +1257,9 @@ class RealCardGamePlatform:
     self.is_spinning = True
     self.spin_btn.config(state="disabled", text="회전 중...")
     self.slot_lobby_btn.config(state="disabled")
-    self.slot_status_lbl.config(text="🎲 릴이 돌아갑니다... 행운을 빕니다!", fg="#E91E63")
+    self.slot_status_lbl.config(
+        text="🎲 릴이 돌아갑니다... 행운을 빕니다!", fg="#E91E63"
+    )
 
     database.update_record(self.current_user["username"], False, -bet_cost)
     self.sync_user_data()
@@ -1139,7 +1295,9 @@ class RealCardGamePlatform:
 
     if step < stop_steps[2]:
       delay = 45 if step < 15 else (65 if step < 23 else 90)
-      self.root.after(delay, lambda: self.animate_reels(step + 1, final_results))
+      self.root.after(
+          delay, lambda: self.animate_reels(step + 1, final_results)
+      )
     else:
       self.finish_slot_spin(final_results)
 
